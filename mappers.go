@@ -15,6 +15,9 @@ type Mapper interface {
 	// Returns ok = true if the mapper handled the error, false otherwise
 	Map(error) (error, bool)
 
+	// MapToFail : Optional convenience for mapping from generic error to fail.Error type
+	MapToFail(err error) (*Error, bool)
+
 	// MapFromFail : Optional convenience for mapping from fail.Error to another error type
 	MapFromFail(*Error) (error, bool)
 }
@@ -93,6 +96,19 @@ func (ml *MapperList) MapError(err error) (error, bool) {
 	return nil, false
 }
 
+// MapToFail maps to *fail.Error
+func (ml *MapperList) MapToFail(err error) (*Error, bool) {
+	ml.mu.RLock()
+	defer ml.mu.RUnlock()
+
+	for e := ml.mappers.Front(); e != nil; e = e.Next() {
+		if fe, ok := e.Value.(Mapper).MapToFail(err); ok {
+			return fe, true
+		}
+	}
+	return nil, false
+}
+
 // MapFromFail maps from *fail.Error
 func (ml *MapperList) MapFromFail(err *Error) (error, bool) {
 	ml.mu.RLock()
@@ -115,6 +131,12 @@ func (d *defaultMapper) Map(err error) (error, bool) {
 		return nil, false
 	}
 	return err, true // returns the error as-is
+}
+func (d *defaultMapper) MapToFail(err error) (*Error, bool) {
+	if fe, ok := err.(*Error); ok {
+		return fe, true
+	}
+	return ErrUnknownError, true // fallback fail.Error
 }
 func (d *defaultMapper) MapFromFail(err *Error) (error, bool) {
 	return errors.New(err.Message), true

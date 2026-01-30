@@ -10,18 +10,6 @@ import (
 	"github.com/jackc/pgconn"
 )
 
-// ============================================================================
-// DEFINING ERROR IDs - The New Way
-// ============================================================================
-//
-// fail.ID(name, domain, static)
-//   - name: Full error name (e.g., "AuthInvalidCredentials")
-//   - domain: Must be prefix of name (e.g., "AUTH")
-//   - static: true = static message, false = dynamic
-//
-// Numbers are deterministic based on hash - no more file order issues!
-// ============================================================================
-
 // Auth domain errors
 var (
 	AuthValidationFailed   = fail.ID("AuthValidationFailed", "AUTH", false, 0)

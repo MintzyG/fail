@@ -47,3 +47,8 @@ func (m *PGXMapper) MapFromFail(fe *fail.Error) (error, bool) {
 	// Convert to something infrastructure understands
 	return errors.New(fe.Message), true
 }
+
+// MapToFail Generic → fail.Error
+func (m *PGXMapper) MapToFail(err error) (*fail.Error, bool) {
+	return ErrSQLUnknownError, true
+}
