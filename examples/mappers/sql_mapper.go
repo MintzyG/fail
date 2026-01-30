@@ -8,15 +8,15 @@ import (
 
 // Common error IDs for generic mappers
 var (
-	SQLNotFound             = fail.ID("SQLNotFound", "SQL", true)
-	SQLUniqueViolation      = fail.ID("SQLUniqueViolation", "SQL", true)
-	SQLForeignKey           = fail.ID("SQLForeignKey", "SQL", true)
-	SQLNotNull              = fail.ID("SQLNotNull", "SQL", true)
-	SQLValueTooLong         = fail.ID("SQLValueTooLong", "SQL", true)
-	SQLCheckViolation       = fail.ID("SQLCheckViolation", "SQL", true)
-	SQLSerializationFailure = fail.ID("SQLSerializationFailure", "SQL", true)
-	SQLConnectionError      = fail.ID("SQLConnectionError", "SQL", true)
-	SQLUnknownError         = fail.ID("SQLUnknownError", "SQL", false)
+	SQLNotFound             = fail.ID("SQLNotFound", "SQL", true, 0)
+	SQLUniqueViolation      = fail.ID("SQLUniqueViolation", "SQL", true, 0)
+	SQLForeignKey           = fail.ID("SQLForeignKey", "SQL", true, 0)
+	SQLNotNull              = fail.ID("SQLNotNull", "SQL", true, 0)
+	SQLValueTooLong         = fail.ID("SQLValueTooLong", "SQL", true, 0)
+	SQLCheckViolation       = fail.ID("SQLCheckViolation", "SQL", true, 0)
+	SQLSerializationFailure = fail.ID("SQLSerializationFailure", "SQL", true, 0)
+	SQLConnectionError      = fail.ID("SQLConnectionError", "SQL", true, 0)
+	SQLUnknownError         = fail.ID("SQLUnknownError", "SQL", false, 0)
 )
 
 // RegisterSQLMappers registers mappers for database/sql and pgx errors

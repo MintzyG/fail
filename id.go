@@ -1,32 +1,37 @@
 package fail
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"sync"
 )
 
-// FIXME add a level to the ID so we can know easily the severity example LVL_ID_NUM_TYPE (0_USER_0001_S)
-// Level shouldn't impact number meaning (0_USER_0001_S can't coexist with 1_USER_0001_S) Only domain and type affect it
+// reservedDomain is the domain reserved for internal error IDs.
+// Users cannot register IDs on this domain through the public ID() function.
+const reservedDomain = "FAIL"
 
 // ErrorID represents a trusted, deterministically-generated error identifier
 // IDs are generated from names using sorting to ensure compilation-order independence
 // Static (S) and Dynamic (D) have separate counters within each domain
+// Format: LEVEL_DOMAIN_NUM_TYPE (e.g., "0_AUTH_0042_S")
+// Level indicates severity but does not affect uniqueness
 type ErrorID struct {
 	name     string
 	domain   string
+	level    int // Severity level
 	isStatic bool
 	number   int  // Derived from sorted position within domain and type
 	trusted  bool // Internal flag - only IDs created by ID() are trusted
 }
 
-// String returns the formatted error ID (e.g., "AUTH_0042_S")
+// String returns the formatted error ID (e.g., "0_AUTH_0042_S")
 func (id ErrorID) String() string {
 	typeChar := "D"
 	if id.isStatic {
 		typeChar = "S"
 	}
-	return fmt.Sprintf("%s_%04d_%s", id.domain, id.number, typeChar)
+	return fmt.Sprintf("%d_%s_%04d_%s", id.level, id.domain, id.number, typeChar)
 }
 
 // Name returns the full error name (e.g., "AuthInvalidCredentials")
@@ -37,6 +42,11 @@ func (id ErrorID) Name() string {
 // Domain returns the error domain (e.g., "AUTH", "USER")
 func (id ErrorID) Domain() string {
 	return id.domain
+}
+
+// Level returns the severity level
+func (id ErrorID) Level() int {
+	return id.level
 }
 
 // Number returns the error number (deterministic based on sorted order within domain and type)
@@ -73,25 +83,36 @@ var globalIDRegistry = &IDRegistry{
 //   - name: Full error name (e.g., "AuthInvalidCredentials", "UserNotFound")
 //   - domain: Error domain (e.g., "AUTH", "USER") - must be a prefix of the name
 //   - static: true for static message, false for dynamic
+//   - level: severity level (0-9 recommended)
 //
 // Panics if:
 //   - Name doesn't start with domain (e.g., name="UserNotFound" but domain="AUTH")
 //   - Name already exists in registry
 //   - Name is too similar to existing name (Levenshtein distance < 3)
+//   - Domain is "FAIL" (reserved for internal errors)
 //
 // Example:
 //
-//	var AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true)  // AUTH_0000_S
-//	var AuthInvalidPassword    = fail.ID("AuthInvalidPassword", "AUTH", true)     // AUTH_0001_S
-//	var AuthCustomError        = fail.ID("AuthCustomError", "AUTH", false)        // AUTH_0000_D
-func ID(name, domain string, static bool) ErrorID {
-	return globalIDRegistry.ID(name, domain, static)
+//	var AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true, 0)  // 0_AUTH_0000_S
+//	var AuthInvalidPassword    = fail.ID("AuthInvalidPassword", "AUTH", true, 0)     // 0_AUTH_0001_S
+//	var AuthCustomError        = fail.ID("AuthCustomError", "AUTH", false, 1)        // 1_AUTH_0000_D
+//	var AuthAnotherError       = fail.ID("AuthAnotherError", "AUTH", false, 0)       // 0_AUTH_0001_D
+func ID(name, domain string, static bool, level int) ErrorID {
+	return globalIDRegistry.ID(name, domain, static, level)
 }
 
 // ID creates a new trusted ErrorID for this registry
-func (r *IDRegistry) ID(name, domain string, static bool) ErrorID {
+func (r *IDRegistry) ID(name, domain string, static bool, level int) ErrorID {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
+	// Validation 0: Domain cannot be reserved
+	if domain == reservedDomain {
+		panic(fmt.Sprintf(
+			"domain '%s' is reserved for internal errors and cannot be used",
+			reservedDomain,
+		))
+	}
 
 	// Validation 1: Name must start with domain
 	if !hasPrefix(name, domain) {
@@ -124,6 +145,7 @@ func (r *IDRegistry) ID(name, domain string, static bool) ErrorID {
 	id := ErrorID{
 		name:     name,
 		domain:   domain,
+		level:    level,
 		isStatic: static,
 		number:   -1, // temporary, will be reassigned
 		trusted:  true,
@@ -141,6 +163,7 @@ func (r *IDRegistry) ID(name, domain string, static bool) ErrorID {
 // 1. Static and dynamic have separate sequences
 // 2. Numbers are contiguous (0, 1, 2, 3...)
 // 3. Numbers are assigned based on alphabetical order of names
+// Note: Level does not affect numbering (0_USER_0001_S and 1_USER_0001_S share the same number sequence)
 func (r *IDRegistry) renumberDomain(domain string) {
 	// Separate static and dynamic names
 	var staticNames, dynamicNames []string
@@ -289,54 +312,54 @@ func minInt(a, b, c int) int {
 	return c
 }
 
-// ExportIDList prints all registered error IDs as JSON to stdout
-// Format: [{"name": "AuthInvalidCredentials", "domain": "AUTH", "static": true, "id": "AUTH_0000_S"}, ...]
-func ExportIDList() {
-	globalIDRegistry.ExportIDList()
+// ExportIDList returns all registered error IDs as JSON bytes
+// Format: [{"name": "AuthInvalidCredentials", "domain": "AUTH", "static": true, "level": 0, "id": "0_AUTH_0000_S"}, ...]
+func ExportIDList() ([]byte, error) {
+	return globalIDRegistry.ExportIDList()
 }
 
-// ExportIDList prints all registered error IDs as JSON for this registry
-func (r *IDRegistry) ExportIDList() {
+// ExportIDList returns all registered error IDs as JSON for this registry
+func (r *IDRegistry) ExportIDList() ([]byte, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// Collect IDs
-	type entry struct {
-		id ErrorID
+	type exportEntry struct {
+		Name   string `json:"name"`
+		Domain string `json:"domain"`
+		Static bool   `json:"static"`
+		Level  int    `json:"level"`
+		Number int    `json:"number"`
+		ID     string `json:"id"`
 	}
-	entries := make([]entry, 0, len(r.registeredIDs))
+
+	// Collect IDs
+	ids := make([]ErrorID, 0, len(r.registeredIDs))
 	for _, id := range r.registeredIDs {
-		entries = append(entries, entry{id: id})
+		ids = append(ids, id)
 	}
 
 	// Sort by domain, then by type (static first), then by number
-	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].id.domain != entries[j].id.domain {
-			return entries[i].id.domain < entries[j].id.domain
+	sort.Slice(ids, func(i, j int) bool {
+		if ids[i].domain != ids[j].domain {
+			return ids[i].domain < ids[j].domain
 		}
-		if entries[i].id.isStatic != entries[j].id.isStatic {
-			return entries[i].id.isStatic // true comes before false
+		if ids[i].isStatic != ids[j].isStatic {
+			return ids[i].isStatic // true comes before false
 		}
-		return entries[i].id.number < entries[j].id.number
+		return ids[i].number < ids[j].number
 	})
 
-	fmt.Println("[")
-
-	first := true
-	for _, e := range entries {
-		if !first {
-			fmt.Println(",")
+	entries := make([]exportEntry, len(ids))
+	for i, id := range ids {
+		entries[i] = exportEntry{
+			Name:   id.name,
+			Domain: id.domain,
+			Static: id.isStatic,
+			Level:  id.level,
+			Number: id.number,
+			ID:     id.String(),
 		}
-		first = false
-
-		staticStr := "true"
-		if !e.id.isStatic {
-			staticStr = "false"
-		}
-
-		fmt.Printf("  {\"name\": \"%s\", \"domain\": \"%s\", \"static\": %s, \"id\": \"%s\"}",
-			e.id.name, e.id.domain, staticStr, e.id.String())
 	}
 
-	fmt.Println("\n]")
+	return json.MarshalIndent(entries, "", "  ")
 }

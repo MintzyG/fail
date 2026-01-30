@@ -6,8 +6,6 @@ import "context"
 // -----------Tracing----------- //
 // ----------------------------- //
 
-// FIXME make interfaces actually work with any solution
-
 // Tracer allows users to provide their own tracing solution
 type Tracer interface {
 	Trace(operation string, fn func() error) error

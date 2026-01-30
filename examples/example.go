@@ -5,6 +5,7 @@ import (
 	"fail/examples/mappers"
 	"fail/examples/translators"
 	"fmt"
+	"log"
 )
 
 // ============================================================================
@@ -21,30 +22,30 @@ import (
 
 // Auth domain errors
 var (
-	AuthValidationFailed   = fail.ID("AuthValidationFailed", "AUTH", false)
-	AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true)
-	AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true)
-	AuthTokenInvalid       = fail.ID("AuthTokenInvalid", "AUTH", false)
-	AuthUserNotFound       = fail.ID("AuthUserNotFound", "AUTH", true)
+	AuthValidationFailed   = fail.ID("AuthValidationFailed", "AUTH", false, 0)
+	AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true, 0)
+	AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true, 0)
+	AuthTokenInvalid       = fail.ID("AuthTokenInvalid", "AUTH", false, 0)
+	AuthUserNotFound       = fail.ID("AuthUserNotFound", "AUTH", true, 0)
 )
 
 // User domain errors
 var (
-	UserEmailExists      = fail.ID("UserEmailExists", "USER", true)
-	UserValidationFailed = fail.ID("UserValidationFailed", "USER", false)
-	UserNotFound         = fail.ID("UserNotFound", "USER", true)
-	UserUsernameExists   = fail.ID("UserUsernameExists", "USER", true) // USER_0001_S
+	UserEmailExists      = fail.ID("UserEmailExists", "USER", true, 0)
+	UserValidationFailed = fail.ID("UserValidationFailed", "USER", false, 0)
+	UserNotFound         = fail.ID("UserNotFound", "USER", true, 0)
+	UserUsernameExists   = fail.ID("UserUsernameExists", "USER", true, 0) // USER_0001_S
 )
 
 // Database domain errors
 var (
-	DBConnectionFailed = fail.ID("DBConnectionFailed", "DB", true)
-	DBQueryFailed      = fail.ID("DBQueryFailed", "DB", false)
+	DBConnectionFailed = fail.ID("DBConnectionFailed", "DB", true, 1)
+	DBQueryFailed      = fail.ID("DBQueryFailed", "DB", false, 3)
 )
 
 var (
-	ContextCanceled = fail.ID("ContextCanceled", "CONTEXT", true) // CONTEXT_0000_S
-	ContextDeadline = fail.ID("ContextDeadline", "CONTEXT", true) // CONTEXT_0001_S
+	ContextCanceled = fail.ID("ContextCanceled", "CONTEXT", true, 2) // CONTEXT_0000_S
+	ContextDeadline = fail.ID("ContextDeadline", "CONTEXT", true, 5) // CONTEXT_0001_S
 )
 
 // ============================================================================
@@ -284,7 +285,11 @@ func main() {
 	fmt.Println("7️⃣  Export ID List (for docs)")
 	fmt.Println("-------------------------------------")
 	fmt.Println("JSON output of all registered errors:")
-	fail.ExportIDList()
+	data, err := fail.ExportIDList()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(data))
 	fmt.Println("")
 
 	// Summary

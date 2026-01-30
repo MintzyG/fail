@@ -1,6 +1,9 @@
 package fail
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Constructors for common patterns
 
@@ -161,7 +164,7 @@ func (e *Error) Validations(errs []ValidationError) *Error {
 	return e
 }
 
-// Log automatically logs the error using the configured log function
+// Log automatically logs the error using the configured logger
 func (e *Error) Log() *Error {
 	global.mu.RLock()
 	logger := global.logger
@@ -173,21 +176,53 @@ func (e *Error) Log() *Error {
 	return e
 }
 
-// Record automatically traces the error using the configured trace function
+func (e *Error) LogCtx(ctx context.Context) *Error {
+	global.mu.RLock()
+	logger := global.logger
+	global.mu.RUnlock()
+
+	if logger != nil {
+		logger.LogCtx(ctx, e)
+	}
+	return e
+}
+
+// Record automatically traces the error using the configured tracer
 func (e *Error) Record() *Error {
 	global.mu.RLock()
 	tracer := global.tracer
 	global.mu.RUnlock()
 
 	if tracer != nil {
-		tracer.Trace(e)
+		_ = tracer.Trace("error.record", func() error {
+			return e
+		})
 	}
+
 	return e
 }
 
-// LogAndRecord does both logging and tracing
+func (e *Error) RecordCtx(ctx context.Context) *Error {
+	global.mu.RLock()
+	tracer := global.tracer
+	global.mu.RUnlock()
+
+	if tracer != nil {
+		_ = tracer.TraceCtx(ctx, "error.record", func(context.Context) error {
+			return e
+		})
+	}
+
+	return e
+}
+
+// LogAndRecord logs and traces the error
 func (e *Error) LogAndRecord() *Error {
 	return e.Log().Record()
+}
+
+func (e *Error) LogAndRecordCtx(ctx context.Context) *Error {
+	return e.Log().RecordCtx(ctx)
 }
 
 // Helper to add items to slice metadata
