@@ -6,6 +6,8 @@ import (
 	"fail/examples/translators"
 	"fmt"
 	"log"
+
+	"github.com/jackc/pgconn"
 )
 
 // ============================================================================
@@ -163,34 +165,17 @@ func emailExists(email string) bool {
 	return email == "taken@example.com"
 }
 
-// Example of how users would set up their custom SQL mappings
-func ExampleCustomSQLMapping() {
-	// Create your domain-specific error IDs
-
-	// Register them
-
-	// Create custom mapper with your constraint mappings
-	mapper := mappers.NewPGXMapper().
-		MapUniqueConstraint("users_email_key", UserEmailExists).
-		MapUniqueConstraint("users_username_key", UserUsernameExists)
-
-	// Register it
-	fail.RegisterMapper(mapper.ToGenericMapper())
-}
-
-// StdlibMappers registers mappers for common stdlib errors
-func ExampleCustomStdlibMappers() {
-
-	// You would add context.Canceled, context.DeadlineExceeded mappers here
-}
-
 // ============================================================================
 // MAIN - DEMONSTRATION
 // ============================================================================
 
 func main() {
 	registerTraditional()
-	fail.RegisterTranslator(translators.HTTPResponseTranslator())
+	if err := fail.RegisterTranslator(translators.HTTPResponseTranslator()); err != nil {
+		log.Fatalf("register translator failed: %v", err)
+	}
+
+	fail.RegisterMapper(&mappers.PGXMapper{})
 
 	fmt.Println("🔥 FAIL - Failure Abstraction & Instrumentation Layer")
 	fmt.Println("=" + "=============================================================")
@@ -260,8 +245,27 @@ func main() {
 	fmt.Printf("Message:  %s\n", httpResp.Message)
 	fmt.Println("")
 
+	// 6️⃣ Database Error Mapping (PGX)
+	fmt.Println("6️⃣  Database Error Mapping")
+	fmt.Println("-------------------------------------")
+
+	// Simulate a pgx unique violation
+	pgErr := &pgconn.PgError{
+		Code:           "23505", // unique_violation
+		ConstraintName: "users_email_key",
+		Message:        "duplicate key value violates unique constraint",
+	}
+
+	mapped := fail.From(pgErr)
+
+	fmt.Printf("Mapped Error: %s\n", mapped)
+	fmt.Printf("ID:           %s\n", mapped.ID)
+	fmt.Printf("Name:         %s\n", mapped.ID.Name())
+	fmt.Printf("Message:      %s\n", mapped.Message)
+	fmt.Println("")
+
 	// 7. Type-safe checking
-	fmt.Println("6️⃣  Type-Safe Error Checking")
+	fmt.Println("7️⃣ Type-Safe Error Checking")
 	fmt.Println("-------------------------------------")
 	err4 := fail.New(AuthTokenExpired)
 
@@ -282,7 +286,7 @@ func main() {
 	fmt.Println("")
 
 	// 8. Export ID list
-	fmt.Println("7️⃣  Export ID List (for docs)")
+	fmt.Println("8️⃣  Export ID List (for docs)")
 	fmt.Println("-------------------------------------")
 	fmt.Println("JSON output of all registered errors:")
 	data, err := fail.ExportIDList()

@@ -9,7 +9,7 @@ import (
 type Registry struct {
 	mu             sync.RWMutex
 	errors         map[string]*Error // Keyed by ID.String()
-	genericMappers []GenericMapper
+	genericMappers *MapperList
 	translators    map[string]Translator
 
 	// Hooks for automatic behavior
@@ -21,7 +21,7 @@ type Registry struct {
 // Global registry - users can also create their own
 var global = &Registry{
 	errors:         make(map[string]*Error),
-	genericMappers: make([]GenericMapper, 0),
+	genericMappers: NewMapperList(true),
 	translators:    make(map[string]Translator),
 	onErrorCreated: make([]func(*Error), 0),
 }
@@ -30,7 +30,7 @@ var global = &Registry{
 func NewRegistry() *Registry {
 	return &Registry{
 		errors:         make(map[string]*Error),
-		genericMappers: make([]GenericMapper, 0),
+		genericMappers: NewMapperList(true),
 		translators:    make(map[string]Translator),
 		onErrorCreated: make([]func(*Error), 0),
 	}
@@ -112,7 +112,7 @@ func (r *Registry) From(err error) *Error {
 		return nil
 	}
 
-	// Already an Error? Return as-is
+	// Already a fail.Error? Return as-is
 	if e, ok := err.(*Error); ok {
 		return e
 	}
@@ -122,16 +122,12 @@ func (r *Registry) From(err error) *Error {
 	r.mu.RUnlock()
 
 	// Try each mapper in priority order
-	for _, mapper := range mappers {
-		if mapper.Matcher(err) {
-			transformed := mapper.Transform(err)
-			r.runOnCreate(transformed)
-			return transformed
-		}
+	if fe, ok := mappers.MapToFail(err); ok {
+		r.runOnCreate(fe)
+		return fe
 	}
 
 	// No mapper matched - create a generic system error
-	// Note: This uses a hardcoded untrusted ID since it's unmapped
 	return &Error{
 		ID:              ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
 		Message:         "an unexpected error occurred",

@@ -45,13 +45,26 @@ func IsSystem(err error) bool {
 	if e, ok := As(err); ok {
 		return e.IsSystem
 	}
-	return false // Unknown errors default to non-system
+	return true // Unknown errors default to system
 }
 
 // IsDomain checks if an error is a domain error
 func IsDomain(err error) bool {
 	if e, ok := As(err); ok {
 		return !e.IsSystem
+	}
+	return false
+}
+
+// IsTrusted checks if an error is trusted by the registry
+func (e *Error) IsTrusted() bool {
+	return e.trusted
+}
+
+// IsTrusted checks if a generic error is an Error and is trusted
+func IsTrusted(err error) bool {
+	if e, ok := As(err); ok {
+		return e.trusted
 	}
 	return false
 }

@@ -1,56 +1,49 @@
 package mappers
 
-import "fail"
+import (
+	"errors"
 
-// PGXMapper creates a mapper for pgx/pgconn errors
-// Users can customize this with their own constraint mappings
-type PGXMapper struct {
-	UniqueConstraints map[string]fail.ErrorID
-	CheckConstraints  map[string]fail.ErrorID
-	ForeignKeys       map[string]fail.ErrorID
-}
+	"fail"
 
-// NewPGXMapper creates a new pgx error mapper
-func NewPGXMapper() *PGXMapper {
-	return &PGXMapper{
-		UniqueConstraints: make(map[string]fail.ErrorID),
-		CheckConstraints:  make(map[string]fail.ErrorID),
-		ForeignKeys:       make(map[string]fail.ErrorID),
+	"github.com/jackc/pgconn"
+)
+
+var (
+	SQLUniqueViolation = fail.ID("SQLUniqueViolation", "SQL", true, 0)
+	SQLForeignKey      = fail.ID("SQLForeignKey", "SQL", true, 0)
+	SQLUnknownError    = fail.ID("SQLUnknownError", "SQL", false, 0)
+)
+
+var (
+	ErrSQLUniqueViolation = fail.Form(SQLUniqueViolation, "unique violation", false, nil)
+	ErrSQLForeignKey      = fail.Form(SQLForeignKey, "foreign key violation", false, nil)
+	ErrSQLUnknownError    = fail.Form(SQLUnknownError, "unknown error", false, nil)
+)
+
+type PGXMapper struct{}
+
+func (m *PGXMapper) Name() string  { return "pgx" }
+func (m *PGXMapper) Priority() int { return 100 }
+
+// Map Generic → Generic OR Fail
+func (m *PGXMapper) Map(err error) (error, bool) {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return nil, false
+	}
+
+	switch pgErr.Code {
+	case "23505": // unique_violation
+		return ErrSQLUniqueViolation, true
+	case "23503": // foreign_key_violation
+		return ErrSQLForeignKey, true
+	default:
+		return ErrSQLUnknownError, true
 	}
 }
 
-// MapUniqueConstraint maps a constraint name to a specific error ID
-func (m *PGXMapper) MapUniqueConstraint(constraintName string, errorID fail.ErrorID) *PGXMapper {
-	m.UniqueConstraints[constraintName] = errorID
-	return m
-}
-
-// MapCheckConstraint maps a check constraint to a specific error ID
-func (m *PGXMapper) MapCheckConstraint(constraintName string, errorID fail.ErrorID) *PGXMapper {
-	m.CheckConstraints[constraintName] = errorID
-	return m
-}
-
-// MapForeignKey maps a foreign key constraint to a specific error ID
-func (m *PGXMapper) MapForeignKey(constraintName string, errorID fail.ErrorID) *PGXMapper {
-	m.ForeignKeys[constraintName] = errorID
-	return m
-}
-
-// ToGenericMapper converts this PGX mapper to a GenericMapper for registration
-func (m *PGXMapper) ToGenericMapper() fail.GenericMapper {
-	return fail.GenericMapper{
-		Name:     "pgx",
-		Priority: 90,
-		Matcher: func(err error) bool {
-			// This would check if it's a pgconn.PgError
-			// For now, simplified - you'd import pgx here
-			return false // Placeholder
-		},
-		Transform: func(err error) *fail.Error {
-			// This would extract the PgError and map based on code and constraint
-			// Placeholder implementation
-			return fail.New(SQLUnknownError).With(err)
-		},
-	}
+// MapFromFail fail.Error → Generic
+func (m *PGXMapper) MapFromFail(fe *fail.Error) (error, bool) {
+	// Convert to something infrastructure understands
+	return errors.New(fe.Message), true
 }
