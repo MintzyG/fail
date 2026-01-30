@@ -1,0 +1,302 @@
+package main
+
+import (
+	"fail"
+	"fail/examples/mappers"
+	"fail/examples/translators"
+	"fmt"
+)
+
+// ============================================================================
+// DEFINING ERROR IDs - The New Way
+// ============================================================================
+//
+// fail.ID(name, domain, static)
+//   - name: Full error name (e.g., "AuthInvalidCredentials")
+//   - domain: Must be prefix of name (e.g., "AUTH")
+//   - static: true = static message, false = dynamic
+//
+// Numbers are deterministic based on hash - no more file order issues!
+// ============================================================================
+
+// Auth domain errors
+var (
+	AuthValidationFailed   = fail.ID("AuthValidationFailed", "AUTH", false)
+	AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true)
+	AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true)
+	AuthTokenInvalid       = fail.ID("AuthTokenInvalid", "AUTH", false)
+	AuthUserNotFound       = fail.ID("AuthUserNotFound", "AUTH", true)
+)
+
+// User domain errors
+var (
+	UserEmailExists      = fail.ID("UserEmailExists", "USER", true)
+	UserValidationFailed = fail.ID("UserValidationFailed", "USER", false)
+	UserNotFound         = fail.ID("UserNotFound", "USER", true)
+	UserUsernameExists   = fail.ID("UserUsernameExists", "USER", true) // USER_0001_S
+)
+
+// Database domain errors
+var (
+	DBConnectionFailed = fail.ID("DBConnectionFailed", "DB", true)
+	DBQueryFailed      = fail.ID("DBQueryFailed", "DB", false)
+)
+
+var (
+	ContextCanceled = fail.ID("ContextCanceled", "CONTEXT", true) // CONTEXT_0000_S
+	ContextDeadline = fail.ID("ContextDeadline", "CONTEXT", true) // CONTEXT_0001_S
+)
+
+// ============================================================================
+// REGISTERING ERRORS - Two Ways
+// ============================================================================
+
+// Option 1: Traditional - Register separately
+func registerTraditional() {
+	fail.RegisterMany(
+		fail.ErrorDefinition{
+			ID:             AuthInvalidCredentials,
+			DefaultMessage: "invalid credentials",
+			IsSystem:       false,
+		},
+		fail.ErrorDefinition{
+			ID:             AuthUserNotFound,
+			DefaultMessage: "user not found",
+			IsSystem:       false,
+		},
+		fail.ErrorDefinition{
+			ID:             AuthTokenExpired,
+			DefaultMessage: "token has expired",
+			IsSystem:       false,
+		},
+	)
+}
+
+// Option 2: Form() - Create sentinel and register in one line! 🎉
+var (
+	ErrUserEmailExists      = fail.Form(UserEmailExists, "email address already registered", false, nil)
+	ErrUsernameExists       = fail.Form(UserUsernameExists, "username already taken", false, nil)
+	ErrUserValidationFailed = fail.Form(UserValidationFailed, "user validation failed", false, nil)
+	ErrDBConnectionFailed   = fail.Form(DBConnectionFailed, "database connection failed", true, nil)
+	ErrContextCanceled      = fail.Form(ContextCanceled, "operation canceled", true, nil)
+	ErrContextDeadline      = fail.Form(ContextDeadline, "operation timed out", true, nil)
+)
+
+// ============================================================================
+// VALIDATION EXAMPLES - These would PANIC at startup!
+// ============================================================================
+
+func showValidationExamples() {
+	fmt.Println("🛡️  Built-in Validation Examples:")
+	fmt.Println("")
+
+	// ❌ PANIC: Name doesn't start with domain
+	fmt.Println("❌ fail.ID(\"InvalidName\", \"AUTH\", true)")
+	fmt.Println("   PANIC: error name 'InvalidName' must start with domain 'AUTH'")
+	fmt.Println("")
+
+	// ❌ PANIC: Duplicate name
+	fmt.Println("❌ fail.ID(\"AuthInvalidCredentials\", \"AUTH\", true)")
+	fmt.Println("   PANIC: error name 'AuthInvalidCredentials' already registered")
+	fmt.Println("")
+
+	// ❌ PANIC: Too similar (distance < 3)
+	fmt.Println("❌ fail.ID(\"AuthInvalidCredential\", \"AUTH\", true)")
+	fmt.Println("   PANIC: too similar to 'AuthInvalidCredentials' (distance: 1, must be >= 3)")
+	fmt.Println("")
+
+	fmt.Println("❌ fail.ID(\"UserNotFounds\", \"USER\", true)")
+	fmt.Println("   PANIC: too similar to 'UserNotFound' (distance: 1, must be >= 3)")
+	fmt.Println("")
+}
+
+// ============================================================================
+// USAGE IN CODE
+// ============================================================================
+
+func Login(email, password string) error {
+	// Static error - message from definition
+	if email == "" {
+		return fail.New(AuthInvalidCredentials)
+	}
+
+	// Dynamic error - customize message
+	if len(password) < 8 {
+		return fail.New(AuthTokenInvalid).
+			Msgf("password must be at least 8 characters, got %d", len(password))
+	}
+
+	// Rich error with context
+	return fail.New(AuthValidationFailed).
+		Msg("authentication failed").
+		Trace("validated email format").
+		Trace("checked password strength").
+		Debug("login attempt from IP: 192.168.1.1").
+		WithMeta("attempt", 3)
+}
+
+func Register(email, password string) error {
+	// Using Form() sentinel
+	if emailExists(email) {
+		return ErrUserEmailExists.
+			WithMeta("email", email).
+			Trace("checked uniqueness")
+	}
+
+	// Validation errors
+	if !validateInput(email, password) {
+		return fail.New(UserValidationFailed).
+			Msg("registration validation failed").
+			Validation("email", "invalid format").
+			Validation("password", "too short")
+	}
+
+	return nil
+}
+
+func validateInput(email, password string) bool {
+	return len(email) > 0 && len(password) >= 8
+}
+
+func emailExists(email string) bool {
+	return email == "taken@example.com"
+}
+
+// Example of how users would set up their custom SQL mappings
+func ExampleCustomSQLMapping() {
+	// Create your domain-specific error IDs
+
+	// Register them
+
+	// Create custom mapper with your constraint mappings
+	mapper := mappers.NewPGXMapper().
+		MapUniqueConstraint("users_email_key", UserEmailExists).
+		MapUniqueConstraint("users_username_key", UserUsernameExists)
+
+	// Register it
+	fail.RegisterMapper(mapper.ToGenericMapper())
+}
+
+// StdlibMappers registers mappers for common stdlib errors
+func ExampleCustomStdlibMappers() {
+
+	// You would add context.Canceled, context.DeadlineExceeded mappers here
+}
+
+// ============================================================================
+// MAIN - DEMONSTRATION
+// ============================================================================
+
+func main() {
+	registerTraditional()
+	fail.RegisterTranslator(translators.HTTPResponseTranslator())
+
+	fmt.Println("🔥 FAIL - Failure Abstraction & Instrumentation Layer")
+	fmt.Println("=" + "=============================================================")
+	fmt.Println("")
+
+	// 1. Show deterministic IDs
+	fmt.Println("1️⃣  Deterministic Hash-Based IDs")
+	fmt.Println("-------------------------------------")
+	fmt.Printf("%-25s = %-13s (name: %s)\n", "AuthInvalidCredentials", AuthInvalidCredentials, AuthInvalidCredentials.Name())
+	fmt.Printf("%-25s = %-13s (name: %s)\n", "AuthUserNotFound", AuthUserNotFound, AuthUserNotFound.Name())
+	fmt.Printf("%-25s = %-13s (name: %s)\n", "AuthTokenExpired", AuthTokenExpired, AuthTokenExpired.Name())
+	fmt.Printf("%-25s = %-13s (name: %s)\n", "UserNotFound", UserNotFound, UserNotFound.Name())
+	fmt.Printf("%-25s = %-13s (name: %s)\n", "UserEmailExists", UserEmailExists, UserEmailExists.Name())
+	fmt.Println("")
+	fmt.Println("✅ Numbers are based on name hash - compilation order independent!")
+	fmt.Println("")
+
+	// 2. Show validation
+	showValidationExamples()
+
+	// 3. Simple error
+	fmt.Println("2️⃣  Creating Errors")
+	fmt.Println("-------------------------------------")
+	err1 := fail.New(AuthInvalidCredentials)
+	fmt.Printf("Error:   %s\n", err1)
+	fmt.Printf("ID:      %s\n", err1.ID)
+	fmt.Printf("Name:    %s\n", err1.ID.Name())
+	fmt.Printf("Message: %s\n", err1.Message)
+	fmt.Println("")
+
+	// 4. Using Form() sentinel
+	fmt.Println("3️⃣  Using Form() Sentinels")
+	fmt.Println("-------------------------------------")
+	fmt.Printf("Sentinel: %s\n", ErrUserEmailExists)
+	fmt.Printf("ID:       %s\n", ErrUserEmailExists.ID)
+	fmt.Printf("Name:     %s\n", ErrUserEmailExists.ID.Name())
+	fmt.Printf("Message:  %s\n", ErrUserEmailExists.Message)
+	fmt.Println("")
+
+	// 5. Rich error
+	fmt.Println("4️⃣  Rich Error with Validation")
+	fmt.Println("-------------------------------------")
+	err2 := Register("bad@email", "short")
+	if err2 != nil {
+		e := fail.From(err2)
+		fmt.Printf("Error: %s\n", e)
+		if validations, ok := e.Meta["validations"]; ok {
+			fmt.Printf("Validations:\n")
+			for _, v := range validations.([]fail.ValidationError) {
+				fmt.Printf("  - %s: %s\n", v.Field, v.Message)
+			}
+		}
+	}
+	fmt.Println("")
+
+	// 6. HTTP translation
+	fmt.Println("5️⃣  HTTP Translation")
+	fmt.Println("-------------------------------------")
+	err3 := fail.New(AuthInvalidCredentials).
+		Trace("checking credentials").
+		Debug("login attempt #3")
+
+	resp, _ := fail.Translate(err3, "http")
+	httpResp := resp.(translators.HTTPResponse)
+	fmt.Printf("Status:   %d\n", httpResp.StatusCode)
+	fmt.Printf("Error ID: %s\n", httpResp.ErrorID)
+	fmt.Printf("Message:  %s\n", httpResp.Message)
+	fmt.Println("")
+
+	// 7. Type-safe checking
+	fmt.Println("6️⃣  Type-Safe Error Checking")
+	fmt.Println("-------------------------------------")
+	err4 := fail.New(AuthTokenExpired)
+
+	if fail.Is(err4, AuthTokenExpired) {
+		fmt.Printf("✅ Matched: %s\n", AuthTokenExpired.Name())
+	}
+
+	fail.Match(err4).
+		Case(AuthInvalidCredentials, func(e *fail.Error) {
+			fmt.Println("Won't match")
+		}).
+		Case(AuthTokenExpired, func(e *fail.Error) {
+			fmt.Printf("✅ Pattern matched: %s\n", e.ID.Name())
+		}).
+		Default(func(err error) {
+			fmt.Println("Default")
+		})
+	fmt.Println("")
+
+	// 8. Export ID list
+	fmt.Println("7️⃣  Export ID List (for docs)")
+	fmt.Println("-------------------------------------")
+	fmt.Println("JSON output of all registered errors:")
+	fail.ExportIDList()
+	fmt.Println("")
+
+	// Summary
+	fmt.Println("🎉 Key Benefits")
+	fmt.Println("-------------------------------------")
+	fmt.Println("✅ Deterministic IDs - hash-based, not file-order dependent")
+	fmt.Println("✅ Name validation - must start with domain")
+	fmt.Println("✅ Duplicate detection - can't register same name twice")
+	fmt.Println("✅ Similarity check - prevents typos (distance >= 3)")
+	fmt.Println("✅ Type-safe - ErrorID is a struct, impossible to typo")
+	fmt.Println("✅ Exportable - generate JSON docs automatically")
+	fmt.Println("✅ Form() helper - one-line sentinel creation")
+	fmt.Println("")
+	fmt.Println("🚀 Run with 'go run example_main.go' to see it in action!")
+}
