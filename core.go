@@ -99,3 +99,6 @@ func Register(def ErrorDefinition) {
 		Meta:     def.Meta,
 	})
 }
+
+var UnknownErrorID = internalID("FailUnknownErrorID", false, 0)
+var ErrUnknownErrorID = Form(UnknownErrorID, "unknown error id", true, nil)
