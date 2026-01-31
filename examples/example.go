@@ -123,14 +123,14 @@ func Login(email, password string) error {
 		Trace("validated email format").
 		Trace("checked password strength").
 		Debug("login attempt from IP: 192.168.1.1").
-		WithMeta("attempt", 3)
+		AddMeta("attempt", 3)
 }
 
 func Register(email, password string) error {
 	// Using Form() sentinel
 	if emailExists(email) {
 		return ErrUserEmailExists.
-			WithMeta("email", email).
+			AddMeta("email", email).
 			Trace("checked uniqueness")
 	}
 
