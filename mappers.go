@@ -136,7 +136,7 @@ func (d *defaultMapper) MapToFail(err error) (*Error, bool) {
 	if fe, ok := err.(*Error); ok {
 		return fe, true
 	}
-	return ErrUnknownError, true // fallback fail.Error
+	return New(UnknownError).With(err), true // Wrap unknown error
 }
 func (d *defaultMapper) MapFromFail(err *Error) (error, bool) {
 	return errors.New(err.Message), true

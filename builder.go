@@ -262,7 +262,7 @@ func (e *Error) LogAndRecord() *Error {
 }
 
 func (e *Error) LogAndRecordCtx(ctx context.Context) *Error {
-	return e.Log().RecordCtx(ctx)
+	return e.LogCtx(ctx).RecordCtx(ctx)
 }
 
 // Helper to add items to slice metadata

@@ -7,7 +7,7 @@ import (
 )
 
 // MultipleErrors is raised when multiple errors are aggregated in ErrorGroup
-var MultipleErrors = internalID(0, 8, false, "FailMultipleErrors")
+var MultipleErrors = internalID(0, 6, false, "FailMultipleErrors")
 var ErrMultipleErrors = Form(MultipleErrors, "multiple errors occurred", false, nil)
 
 // ErrorGroup collects multiple errors thread-safely
@@ -37,7 +37,7 @@ func (g *ErrorGroup) Add(err error) *ErrorGroup {
 
 // Addf adds a formatted error string as a dynamic error (convenience method)
 func (g *ErrorGroup) Addf(id ErrorID, format string, args ...interface{}) *ErrorGroup {
-	err := Newf(id, format, args)
+	err := Newf(id, format, args...)
 	return g.Add(err)
 }
 

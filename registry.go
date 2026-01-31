@@ -115,8 +115,16 @@ func (r *Registry) From(err error) *Error {
 		return nil
 	}
 
+	var result *Error
+	defer func() {
+		if result != nil {
+			r.hooks.runFrom(err, result)
+		}
+	}()
+
 	// Already a fail.Error? Return as-is
 	if e, ok := err.(*Error); ok {
+		result = e
 		return e
 	}
 
@@ -126,11 +134,12 @@ func (r *Registry) From(err error) *Error {
 
 	// Try each mapper in priority order
 	if fe, ok := mappers.MapToFail(err); ok {
+		result = fe
 		return fe
 	}
 
 	// No mapper matched - create a generic system error
-	return &Error{
+	result = &Error{
 		ID:              ErrorID{domain: "UNMAPPED", number: 0, isStatic: false, trusted: false},
 		Message:         "an unexpected error occurred",
 		InternalMessage: err.Error(),
@@ -139,4 +148,5 @@ func (r *Registry) From(err error) *Error {
 		trusted:         false,
 		registry:        r,
 	}
+	return result
 }

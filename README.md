@@ -13,33 +13,32 @@ Error IDs are **hash-based** and **compilation-order independent**:
 ```go
 // Define with NAMES - numbers are deterministic!
 var (
-    AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true)  // AUTH_4721_S
-    AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true)        // AUTH_8392_S
-    UserNotFound           = fail.ID("UserNotFound", "USER", true)            // USER_1847_S
+    AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")  // 0_AUTH_0000_S
+    AuthTokenExpired       = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")        // 0_AUTH_0001_S
+    UserNotFound           = fail.ID(0, "USER", 0, true, "UserNotFound")            // 0_USER_0000_S
 )
 
-// Numbers are based on SHA-256 hash of the name
-// They NEVER change unless you rename the error
+// Numbers are based on explicit assignment per domain
+// They NEVER change unless you change the number
 // No more file-order issues! 🎉
 ```
 
 ### 🛡️ Built-in Validation
 
-FAIL validates at compile time (via `init()` or first use):
+FAIL validates at runtime (via `fail.ID` or `ValidateIDs`):
 
 ```go
 // ✅ Valid - name starts with domain
-var Good1 = fail.ID("AuthInvalidCredentials", "AUTH", true)
+var Good1 = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")
 
 // ❌ PANIC - name doesn't start with domain  
-var Bad1 = fail.ID("InvalidCredentials", "AUTH", true)
+var Bad1 = fail.ID(0, "AUTH", 1, true, "InvalidCredentials")
 
 // ❌ PANIC - duplicate name
-var Bad2 = fail.ID("AuthInvalidCredentials", "AUTH", true)
+var Bad2 = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")
 
 // ❌ PANIC - too similar (Levenshtein distance < 3)
-var Bad3 = fail.ID("AuthInvalidCredential", "AUTH", true)  // Too close!
-var Bad4 = fail.ID("UserNotFounds", "USER", true)         // Too close to UserNotFound!
+var Bad3 = fail.ID(0, "AUTH", 2, true, "AuthInvalidCredential")  // Too close!
 ```
 
 ### 🎨 One-Line Error Registration
@@ -64,8 +63,8 @@ fail.ExportIDList()
 
 // Output:
 // [
-//   {"name": "AuthInvalidCredentials", "domain": "AUTH", "static": true, "id": "AUTH_4721_S"},
-//   {"name": "UserNotFound", "domain": "USER", "static": true, "id": "USER_1847_S"},
+//   {"name": "AuthInvalidCredentials", "domain": "AUTH", "static": true, "id": "0_AUTH_0000_S"},
+//   {"name": "UserNotFound", "domain": "USER", "static": true, "id": "0_USER_0000_S"},
 //   ...
 // ]
 ```
@@ -83,17 +82,16 @@ import "your-module/fail"
 
 // Auth domain - names MUST start with "Auth"
 var (
-    AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true)
-    AuthUserNotFound       = fail.ID("AuthUserNotFound", "AUTH", true)
-    AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true)
-    AuthValidationFailed   = fail.ID("AuthValidationFailed", "AUTH", false) // Dynamic!
+    AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")
+    AuthTokenExpired       = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")
+    AuthValidationFailed   = fail.ID(0, "AUTH", 0, false, "AuthValidationFailed") // Dynamic!
 )
 
 // User domain - names MUST start with "User"
 var (
-    UserNotFound         = fail.ID("UserNotFound", "USER", true)
-    UserEmailExists      = fail.ID("UserEmailExists", "USER", true)
-    UserValidationFailed = fail.ID("UserValidationFailed", "USER", false)
+    UserNotFound         = fail.ID(0, "USER", 0, true, "UserNotFound")
+    UserEmailExists      = fail.ID(0, "USER", 1, true, "UserEmailExists")
+    UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed")
 )
 ```
 
@@ -106,11 +104,6 @@ func init() {
         fail.ErrorDefinition{
             ID:             AuthInvalidCredentials,
             DefaultMessage: "invalid credentials",
-            IsSystem:       false,
-        },
-        fail.ErrorDefinition{
-            ID:             UserNotFound,
-            DefaultMessage: "user not found",
             IsSystem:       false,
         },
     )
@@ -155,11 +148,9 @@ func GetUser(id int) (*User, error) {
 func HandleLogin(w http.ResponseWriter, r *http.Request) {
     err := Login(email, password)
     if err != nil {
+        // Translate to HTTP response
         resp, _ := fail.Translate(fail.From(err), "http")
-        httpResp := resp.(fail.HTTPResponse)
-        
-        w.WriteHeader(httpResp.StatusCode)
-        json.NewEncoder(w).Encode(httpResp)
+        // ... handle response
         return
     }
     
@@ -169,44 +160,20 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 
 ## 🎯 ID Format
 
-Format: `DOMAIN_NNNN_(S|D)`
+Format: `LEVEL_DOMAIN_NNNN_(S|D)`
 
+- **LEVEL**: Severity level (0-9)
 - **DOMAIN**: Error category (AUTH, USER, DB, etc.)
-- **NNNN**: 4-digit hash-based number (0000-9999)
+- **NNNN**: 4-digit explicit number (0000-9999)
 - **S/D**: Static or Dynamic message
 
-**Hash-Based Numbering:**
+**Explicit Numbering:**
 ```go
-// Numbers are deterministic based on name hash
-AuthInvalidCredentials // AUTH_4721_S - always this number!
-AuthTokenExpired       // AUTH_8392_S - always this number!
-UserNotFound           // USER_1847_S - always this number!
+// Numbers are assigned explicitly for stability
+AuthInvalidCredentials // 0_AUTH_0000_S
+AuthTokenExpired       // 0_AUTH_0001_S
 
-// Even if you reorder files or change import order, IDs stay the same!
-```
-
-**Name Requirements:**
-```go
-// ✅ Valid - name starts with domain
-fail.ID("AuthInvalidCredentials", "AUTH", true)
-fail.ID("UserNotFound", "USER", true)
-fail.ID("DBConnectionFailed", "DB", true)
-
-// ❌ Invalid - name doesn't start with domain
-fail.ID("InvalidCredentials", "AUTH", true) // PANIC!
-fail.ID("NotFound", "USER", true)           // PANIC!
-```
-
-**Similarity Protection:**
-```go
-// ✅ Valid - names are sufficiently different
-fail.ID("UserNotFound", "USER", true)
-fail.ID("UserNotActive", "USER", true)      // Distance = 7, OK!
-
-// ❌ Invalid - names too similar (distance < 3)
-fail.ID("UserNotFound", "USER", true)
-fail.ID("UserNotFounds", "USER", true)      // Distance = 1, PANIC!
-fail.ID("UserNot Found", "USER", true)      // Distance = 1, PANIC!
+// IDs remain stable even if you reorder files!
 ```
 
 ## 🎨 Core Features
@@ -222,244 +189,194 @@ err := fail.New(UserValidationFailed).
     Trace("step 1").
     Debug("SQL: SELECT...").
     Validation("email", "invalid").
-    WithMeta("key", value).
+    WithMeta(map[string]any{"key": "value"}).
     System().
     LogAndRecord()
 ```
 
-### Form() Convenience
+### 🔄 Robust Retry Logic
+
+Built-in retry mechanism with configurable backoff strategies and jitter.
 
 ```go
-// Create and register in one line
-var (
-    ErrUserNotFound    = fail.Form(UserNotFound, "user not found", false, nil)
-    ErrDBConnFailed    = fail.Form(DBConnectionFailed, "db connection failed", true, nil)
-    ErrInvalidInput    = fail.Form(ValidationFailed, "invalid input", false, map[string]any{
-        "category": "validation",
-    })
-)
+// Basic retry (uses default config)
+err := fail.Retry(func() error {
+    return db.Connect()
+})
 
-// Use directly
-return ErrUserNotFound
-return ErrUserNotFound.WithMeta("user_id", 123)
+// Advanced retry with exponential backoff + jitter
+cfg := fail.RetryConfig{
+    MaxAttempts: 5,
+    Delay: fail.WithJitter(
+        fail.BackoffExponential(100*time.Millisecond), 
+        0.3, // 30% jitter
+    ),
+    ShouldRetry: func(err error) bool {
+        // Custom retry logic
+        return fail.IsSystem(err)
+    },
+}
+
+err := fail.RetryCFG(cfg, func() error {
+    return remoteAPI.Call()
+})
+
+// Retry with return value
+val, err := fail.RetryValue(func() (*User, error) {
+    return repo.GetUser(id)
+})
 ```
 
-### Auto-Documentation
+### 🔗 Advanced Error Chaining
+
+Fluent chain API for executing steps and handling errors cleanly.
 
 ```go
-// Generate JSON documentation of all errors
-fail.ExportIDList()
-
-// Output format:
-// [
-//   {
-//     "name": "AuthInvalidCredentials",
-//     "domain": "AUTH",
-//     "static": true,
-//     "id": "AUTH_4721_S"
-//   },
-//   {
-//     "name": "UserValidationFailed",
-//     "domain": "USER",
-//     "static": false,
-//     "id": "USER_3892_D"
-//   }
-// ]
-
-// Pipe to file for documentation
-// go run main.go > errors.json
+err := fail.Chain(validateRequest).
+    Then(checkPermissions).
+    ThenCtx("database", saveData).       // Adds context to error if fails
+    ThenIf(shouldNotify, sendEmail).     // Conditional execution
+    Catch(func(e *fail.Error) *fail.Error {
+        // Transform error if needed
+        return e.AddMeta("caught", true)
+    }).
+    Finally(func() {
+        cleanup()
+    }).
+    Error() // Returns *fail.Error or nil
 ```
 
-### HTTP Translation
+### 📦 Error Groups
+
+Collect multiple errors thread-safely (e.g., parallel validation).
 
 ```go
-// Setup once
-fail.RegisterTranslator(fail.DefaultHTTPTranslator())
+group := fail.NewErrorGroup(10)
 
-// Use everywhere
-err := fail.New(AuthInvalidCredentials)
+// Add errors safely from goroutines
+group.Add(err1)
+group.Addf(ValidationFailed, "field %s invalid", "email")
+
+if group.HasErrors() {
+    // Returns a single error containing all others
+    return group.ToError() 
+}
+```
+
+### 🪝 Hooks & Lifecycle
+
+Hook into error events for global monitoring, logging, or metrics.
+
+```go
+// Register global hooks
+fail.OnCreate(func(e *fail.Error) {
+    // Called when fail.New() is used
+})
+
+fail.OnLog(func(e *fail.Error, data map[string]any) {
+    // Called when e.Log() is called
+})
+
+fail.OnMatch(func(e *fail.Error, data map[string]any) {
+    // Called when fail.Match() succeeds
+})
+```
+
+### 🔍 Observability
+
+Integrate with your favorite tracing and logging libraries.
+
+```go
+// 1. Implement fail.Tracer and fail.Logger interfaces
+type MyTracer struct { ... }
+type MyLogger struct { ... }
+
+// 2. Register them
+fail.SetTracer(&MyTracer{})
+fail.SetLogger(&MyLogger{})
+
+// 3. Use in code
+err := fail.New(AuthTokenExpired).
+    Record(). // Traces error
+    Log()     // Logs error
+```
+
+### 🔄 Generic Error Mapping
+
+Map external errors (DB, libraries) to your domain errors.
+
+```go
+// Implement Mapper interface
+type MyMapper struct{}
+func (m *MyMapper) MapToFail(err error) (*fail.Error, bool) {
+    if isPostgresDuplicateKey(err) {
+        return fail.New(UserEmailExists), true
+    }
+    return nil, false
+}
+
+// Register with priority
+fail.RegisterMapper(&MyMapper{})
+
+// Usage:
+err := db.Query(...)
+return fail.From(err) // Automatically mapped!
+```
+
+### 🌐 Translation
+
+Convert errors to other formats (HTTP, gRPC, CLI).
+
+```go
+// Implement Translator
+type HTTPTranslator struct{}
+func (t *HTTPTranslator) Translate(e *fail.Error) (any, error) {
+    return HTTPResponse{Code: 400, Msg: e.Message}, nil
+}
+
+fail.RegisterTranslator(&HTTPTranslator{})
+
+// Usage
 resp, _ := fail.Translate(err, "http")
-httpResp := resp.(fail.HTTPResponse)
-
-// HTTP status codes inferred from domain:
-// AUTH    -> 401 Unauthorized
-// USER    -> 400 Bad Request
-// PERM    -> 403 Forbidden
-// DB      -> 500 Internal Server Error (if IsSystem=true)
 ```
 
-### Validation Errors
+## 🔍 Pattern Matching
+
+Match errors elegantly without nested if-statements.
 
 ```go
-err := fail.New(UserValidationFailed).
-    Msg("registration failed").
-    Validation("email", "invalid format").
-    Validation("password", "too short").
-    Validation("age", "must be 18+")
-
-// Clean JSON response:
-// {
-//   "error_id": "USER_3892_D",
-//   "message": "registration failed",
-//   "validations": [
-//     {"field": "email", "message": "invalid format"},
-//     {"field": "password", "message": "too short"},
-//     {"field": "age", "message": "must be 18+"}
-//   ]
-// }
-```
-
-### Error Checking
-
-```go
-// Type-safe checking
-if fail.Is(err, AuthInvalidCredentials) {
-    // Handle auth error
-}
-
-if fail.IsSystem(err) {
-    // Alert ops
-}
-
-// Pattern matching
 fail.Match(err).
     Case(AuthInvalidCredentials, func(e *fail.Error) {
         log.Info("invalid credentials")
     }).
-    Case(UserNotFound, func(e *fail.Error) {
-        log.Info("user not found")
+    CaseDomain(func(e *fail.Error) {
+        // Handle any domain error
     }).
     CaseSystem(func(e *fail.Error) {
+        // Handle system/unexpected errors
         alert.Ops(e)
     }).
     Default(func(err error) {
-        log.Error("unknown error")
+        // Unknown error
     })
-```
-
-### Generic Error Mapping
-
-```go
-// Auto-map stdlib/library errors
-fail.RegisterSQLMappers()
-
-err := db.Query(...)
-return fail.From(err) // Auto-mapped to SQLNotFound, SQLUniqueViolation, etc.
-
-// Custom mappers
-var UserEmailExists = fail.ID("UserEmailExists", "USER", true)
-
-mapper := fail.NewPGXMapper().
-    MapUniqueConstraint("users_email_key", UserEmailExists)
-fail.RegisterMapper(mapper.ToGenericMapper())
-```
-
-### Observability
-
-```go
-// Setup once
-fail.QuickSetupOTel(span)
-fail.QuickSetupSlog(logger)
-
-// All errors auto-traced and logged
-err := fail.New(AuthTokenExpired).Record().Log()
-
-// Custom hooks
-fail.OnErrorCreated(func(e *fail.Error) {
-    if e.IsSystem {
-        sentry.CaptureError(e)
-    }
-})
-```
-
-## 🔍 Real-World Example
-
-```go
-// errors.go
-package myapp
-
-import "your-module/fail"
-
-var (
-    // Define IDs
-    AuthInvalidCredentials = fail.ID("AuthInvalidCredentials", "AUTH", true)
-    AuthTokenExpired       = fail.ID("AuthTokenExpired", "AUTH", true)
-    UserNotFound           = fail.ID("UserNotFound", "USER", true)
-    UserEmailExists        = fail.ID("UserEmailExists", "USER", true)
-    
-    // Create sentinels
-    ErrAuthInvalidCreds = fail.Form(AuthInvalidCredentials, "invalid credentials", false, nil)
-    ErrUserNotFound     = fail.Form(UserNotFound, "user not found", false, nil)
-    ErrUserEmailExists  = fail.Form(UserEmailExists, "email already registered", false, nil)
-)
-
-// service.go
-func (s *Service) Login(ctx context.Context, email, password string) error {
-    user, err := s.db.GetUserByEmail(ctx, email)
-    if err != nil {
-        if fail.Is(err, SQLNotFound) {
-            return ErrUserNotFound
-        }
-        return fail.From(err).Trace("fetching user")
-    }
-    
-    if !s.validatePassword(password, user.Hash) {
-        return ErrAuthInvalidCreds
-    }
-    
-    return nil
-}
-
-func (s *Service) Register(ctx context.Context, email, password string) error {
-    err := s.db.CreateUser(ctx, email, password)
-    if err != nil {
-        // Auto-mapped to UserEmailExists if constraint violated!
-        return fail.From(err).WithMeta("email", email)
-    }
-    return nil
-}
-
-// handler.go
-func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
-    err := h.service.Login(r.Context(), email, password)
-    if err != nil {
-        resp, _ := fail.Translate(fail.From(err), "http")
-        httpResp := resp.(fail.HTTPResponse)
-        
-        w.WriteHeader(httpResp.StatusCode)
-        json.NewEncoder(w).Encode(httpResp)
-        return
-    }
-    
-    w.WriteHeader(200)
-}
-
-// main.go - Generate docs
-func main() {
-    fail.ExportIDList() // Print JSON to stdout
-}
 ```
 
 ## 🎁 Helper Functions
 
 ```go
 // Quick constructors
-fail.Quick(AuthTokenExpired, "custom msg")
+fail.Fast(AuthTokenExpired, "custom msg")
 fail.Wrap(DBQueryFailed, dbErr)
 fail.WrapMsg(DBQueryFailed, "query failed", dbErr)
 
-// Error groups
-group := fail.NewErrorGroup()
-group.Add(err1)
-group.Add(err2)
-return group.ToError()
+// Panic on error (for init)
+fail.Must(err)
+fail.MustNew(AuthTokenExpired)
 
-// Error chains
-err := fail.Chain().
-    Then(validate).
-    Then(process).
-    Then(save).
-    Error()
+// Checkers
+fail.Is(err, AuthTokenExpired)
+fail.IsSystem(err)
+fail.IsTrusted(err)
 ```
 
 ## 🚀 Why FAIL?
@@ -470,7 +387,7 @@ err := fail.Chain().
 - **Documented**: Export JSON list for automatic documentation
 - **Ergonomic**: Beautiful fluent API with Form() helper
 - **Framework-Agnostic**: Works with any HTTP framework
-- **Observable**: Built-in logging and tracing
+- **Observable**: Built-in logging and tracing hooks
 - **Fun**: Actually enjoyable to use!
 
 ## 📦 Installation

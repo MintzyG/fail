@@ -111,5 +111,5 @@ func Register(def ErrorDefinition) {
 	})
 }
 
-var UnknownError = internalID(0, 9, false, "FailUnknownError")
+var UnknownError = internalID(0, 7, false, "FailUnknownError")
 var ErrUnknownError = Form(UnknownError, "unknown error", true, nil)

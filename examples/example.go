@@ -12,25 +12,25 @@ import (
 
 // Auth domain errors
 var (
+	AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials") // 0_AUTH_0001_S
+	AuthTokenExpired       = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")       // 0_AUTH_0002_S
+	AuthUserNotFound       = fail.ID(0, "AUTH", 2, true, "AuthUserNotFound")       // 0_AUTH_0004_S
 	AuthValidationFailed   = fail.ID(0, "AUTH", 0, false, "AuthValidationFailed")  // 0_AUTH_0000_D
-	AuthInvalidCredentials = fail.ID(0, "AUTH", 1, true, "AuthInvalidCredentials") // 0_AUTH_0001_S
-	AuthTokenExpired       = fail.ID(0, "AUTH", 2, true, "AuthTokenExpired")       // 0_AUTH_0002_S
-	AuthTokenInvalid       = fail.ID(0, "AUTH", 3, false, "AuthTokenInvalid")      // 0_AUTH_0003_D
-	AuthUserNotFound       = fail.ID(0, "AUTH", 4, true, "AuthUserNotFound")       // 0_AUTH_0004_S
+	AuthTokenInvalid       = fail.ID(0, "AUTH", 1, false, "AuthTokenInvalid")      // 0_AUTH_0003_D
 )
 
 // User domain errors
 var (
 	UserEmailExists      = fail.ID(0, "USER", 0, true, "UserEmailExists")       // 0_USER_0000_S
-	UserValidationFailed = fail.ID(0, "USER", 1, false, "UserValidationFailed") // 0_USER_0001_D
-	UserNotFound         = fail.ID(0, "USER", 2, true, "UserNotFound")          // 0_USER_0002_S
-	UserUsernameExists   = fail.ID(0, "USER", 3, true, "UserUsernameExists")    // 0_USER_0003_S
+	UserNotFound         = fail.ID(0, "USER", 1, true, "UserNotFound")          // 0_USER_0002_S
+	UserUsernameExists   = fail.ID(0, "USER", 2, true, "UserUsernameExists")    // 0_USER_0003_S
+	UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed") // 0_USER_0001_D
 )
 
 // Database domain errors
 var (
 	DBConnectionFailed = fail.ID(1, "DB", 0, true, "DBConnectionFailed") // 1_DB_0000_S
-	DBQueryFailed      = fail.ID(3, "DB", 1, false, "DBQueryFailed")     // 3_DB_0001_D
+	DBQueryFailed      = fail.ID(3, "DB", 0, false, "DBQueryFailed")     // 3_DB_0001_D
 )
 
 var (
@@ -158,6 +158,7 @@ func emailExists(email string) bool {
 // ============================================================================
 
 func main() {
+	fail.ValidateIDs()
 	registerTraditional()
 	if err := fail.RegisterTranslator(translators.HTTPResponseTranslator()); err != nil {
 		log.Fatalf("register translator failed: %v", err)

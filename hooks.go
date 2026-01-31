@@ -81,7 +81,7 @@ func (h *Hooks) On(t HookType, fn any) {
 	case HookCreate:
 		f, ok := fn.(func(*Error, map[string]any))
 		if !ok {
-			panic(fmt.Sprintf("HookCreate requires func(*Error), got %T", fn))
+			panic(fmt.Sprintf("HookCreate requires func(*Error, map[string]any), got %T", fn))
 		}
 		h.mu.Lock()
 		h.onCreate = append(h.onCreate, f)
@@ -99,7 +99,7 @@ func (h *Hooks) On(t HookType, fn any) {
 	case HookTrace:
 		f, ok := fn.(func(*Error, map[string]any))
 		if !ok {
-			panic(fmt.Sprintf("HookTrace requires func(*Error, []Frame), got %T", fn))
+			panic(fmt.Sprintf("HookTrace requires func(*Error, map[string]any), got %T", fn))
 		}
 		h.mu.Lock()
 		h.onTrace = append(h.onTrace, f)
@@ -108,7 +108,7 @@ func (h *Hooks) On(t HookType, fn any) {
 	case HookMap:
 		f, ok := fn.(func(*Error, map[string]any))
 		if !ok {
-			panic(fmt.Sprintf("HookMapMeta requires func(*Error, map[string]any), got %T", fn))
+			panic(fmt.Sprintf("HookMap requires func(*Error, map[string]any), got %T", fn))
 		}
 		h.mu.Lock()
 		h.OnMap = append(h.OnMap, f)
@@ -144,7 +144,7 @@ func (h *Hooks) On(t HookType, fn any) {
 	case HookTranslate:
 		f, ok := fn.(func(*Error, map[string]any))
 		if !ok {
-			panic(fmt.Sprintf("HookTranslate requires func(*Error, string, string), got %T", fn))
+			panic(fmt.Sprintf("HookTranslate requires func(*Error, map[string]any), got %T", fn))
 		}
 		h.mu.Lock()
 		h.onTranslate = append(h.onTranslate, f)
@@ -153,7 +153,7 @@ func (h *Hooks) On(t HookType, fn any) {
 	case HookMatch:
 		f, ok := fn.(func(*Error, map[string]any))
 		if !ok {
-			panic(fmt.Sprintf("HookMatch requires func(*Error, string, any), got %T", fn))
+			panic(fmt.Sprintf("HookMatch requires func(*Error, map[string]any), got %T", fn))
 		}
 		h.mu.Lock()
 		h.onMatch = append(h.onMatch, f)
@@ -248,12 +248,12 @@ func (h *Hooks) runMatch(err *Error, data map[string]any) {
 
 // IDE-friendly convenience wrappers
 
-func OnCreate(fn func(*Error))              { On(HookCreate, fn) }
-func OnLog(fn func(*Error, map[string]any)) { On(HookLog, fn) }
-func OnTrace(fn func(*Error, []Frame))      { On(HookTrace, fn) }
-func OnMap(fn func(*Error, map[string]any)) { On(HookMap, fn) }
-func OnWrap(fn func(*Error, error))         { On(HookWrap, fn) }
-func OnFrom(fn func(error, *Error))         { On(HookFrom, fn) }
-func OnForm(fn func(ErrorID, *Error))       { On(HookForm, fn) }
-func OnTranslate(fn func(*Error, any))      { On(HookTranslate, fn) }
-func OnMatch(fn func(*Error, any))          { On(HookMatch, fn) }
+func OnCreate(fn func(*Error, map[string]any))    { On(HookCreate, fn) }
+func OnLog(fn func(*Error, map[string]any))       { On(HookLog, fn) }
+func OnTrace(fn func(*Error, map[string]any))     { On(HookTrace, fn) }
+func OnMap(fn func(*Error, map[string]any))       { On(HookMap, fn) }
+func OnWrap(fn func(*Error, error))               { On(HookWrap, fn) }
+func OnFrom(fn func(error, *Error))               { On(HookFrom, fn) }
+func OnForm(fn func(ErrorID, *Error))             { On(HookForm, fn) }
+func OnTranslate(fn func(*Error, map[string]any)) { On(HookTranslate, fn) }
+func OnMatch(fn func(*Error, map[string]any))     { On(HookMatch, fn) }
