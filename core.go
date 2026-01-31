@@ -32,7 +32,7 @@ func From(err error) *Error {
 // Form creates, registers, and returns an error in one call
 // This is a convenience function for defining error sentinels
 //
-// WARNING Only use package level sentinel errors that are created by From in non-concurrent environments
+// WARNING Only use package level sentinel errors that are created by Form in non-concurrent environments
 // For concurrent environment prefer calling New with the error ID
 //
 // Example:
