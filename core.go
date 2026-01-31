@@ -47,19 +47,40 @@ func From(err error) *Error {
 //	    IsSystem:       false,
 //	})
 //	var ErrUserNotFound = fail.New(UserNotFound)
-func Form(id ErrorID, defaultMsg string, isSystem bool, meta map[string]any) *Error {
-	def := Error{
+func Form(id ErrorID, defaultMsg string, isSystem bool, meta map[string]any, defaultArgs ...any) *Error {
+	return global.Form(id, defaultMsg, isSystem, meta, defaultArgs...)
+}
+
+func (r *Registry) Form(id ErrorID, defaultMsg string, isSystem bool, meta map[string]any, defaultArgs ...any) *Error {
+	def := ErrorDefinition{
+		ID:             id,
+		DefaultMessage: defaultMsg,
+		IsSystem:       isSystem,
+		Meta:           meta,
+		DefaultArgs:    defaultArgs,
+	}
+
+	r.mu.Lock()
+	if r.definitions == nil {
+		r.definitions = make(map[ErrorID]ErrorDefinition)
+	}
+	r.definitions[id] = def
+	r.mu.Unlock()
+
+	// Create template error
+	tmpl := &Error{
 		ID:       id,
 		Message:  defaultMsg,
 		IsSystem: isSystem,
 		Meta:     meta,
+		Args:     defaultArgs,
+		registry: r,
 	}
 
-	global.Register(def)
+	r.Register(tmpl)
+	global.hooks.runForm(id, tmpl)
 
-	global.hooks.runForm(id, &def)
-
-	return New(id)
+	return r.New(id)
 }
 
 // Error is the core error type that all domain errors implement
@@ -71,6 +92,9 @@ type Error struct {
 	Cause           error   // The underlying error that caused this
 	IsSystem        bool    // true = infrastructure/unexpected, false = domain/expected
 
+	Args   []any  // Captured arguments for localization
+	Locale string // Target locale for this error instance
+
 	// Optional structured data
 	Meta map[string]any // Arbitrary metadata (traces, validation errors, etc.)
 
@@ -79,12 +103,14 @@ type Error struct {
 	registry *Registry
 }
 
-// Error implements the error interface
+// Error() uses GetRendered() for the final message
 func (e *Error) Error() string {
+	msg := e.GetRendered()
+
 	if e.Cause != nil {
-		return fmt.Sprintf("[%s] %s: %v", e.ID, e.Message, e.Cause)
+		return fmt.Sprintf("[%s] %s: %v", e.ID.String(), msg, e.Cause)
 	}
-	return fmt.Sprintf("[%s] %s", e.ID, e.Message)
+	return fmt.Sprintf("[%s] %s", e.ID.String(), msg)
 }
 
 // Unwrap implements error unwrapping for errors.Is/As
@@ -101,11 +127,12 @@ type ErrorDefinition struct {
 	DefaultMessage string // Used for Static errors or as fallback
 	IsSystem       bool
 	Meta           map[string]any // Default metadata to include
+	DefaultArgs    []any
 }
 
 // Register adds an error definition to the global registry
 func Register(def ErrorDefinition) {
-	global.Register(Error{
+	global.Register(&Error{
 		ID:       def.ID,
 		Message:  def.DefaultMessage,
 		IsSystem: def.IsSystem,

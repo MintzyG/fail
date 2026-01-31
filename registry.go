@@ -9,8 +9,12 @@ import (
 type Registry struct {
 	mu             sync.RWMutex
 	errors         map[string]*Error // Keyed by ID.String()
+	definitions    map[ErrorID]ErrorDefinition
 	genericMappers *MapperList
 	translators    map[string]Translator
+
+	defaultLocale string
+	localization  TranslationRegistry
 
 	// Hooks for automatic behavior
 	hooks Hooks
@@ -38,7 +42,7 @@ func NewRegistry() *Registry {
 }
 
 // Register adds an error definition to this registry
-func (r *Registry) Register(err Error) {
+func (r *Registry) Register(err *Error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -47,17 +51,17 @@ func (r *Registry) Register(err Error) {
 		panic(fmt.Sprintf("cannot register untrusted error ID: %s (must use fail.ID() to create)", err.ID))
 	}
 
-	r.errors[err.ID.String()] = &err
+	r.errors[err.ID.String()] = err
 }
 
 // RegisterMany registers multiple error definitions at once
-func RegisterMany(defs ...ErrorDefinition) {
+func RegisterMany(defs ...*ErrorDefinition) {
 	global.RegisterMany(defs...)
 }
 
-func (r *Registry) RegisterMany(defs ...ErrorDefinition) {
+func (r *Registry) RegisterMany(defs ...*ErrorDefinition) {
 	for _, def := range defs {
-		r.Register(Error{
+		r.Register(&Error{
 			ID:       def.ID,
 			Message:  def.DefaultMessage,
 			IsSystem: def.IsSystem,

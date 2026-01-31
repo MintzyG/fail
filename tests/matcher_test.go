@@ -12,8 +12,8 @@ var MatchID2 = fail.ID(0, "MATC", 2, true, "MatchBeta")
 
 func TestMatcher(t *testing.T) {
 	fail.RegisterMany(
-		fail.ErrorDefinition{ID: MatchID1},
-		fail.ErrorDefinition{ID: MatchID2},
+		&fail.ErrorDefinition{ID: MatchID1},
+		&fail.ErrorDefinition{ID: MatchID2},
 	)
 
 	tests := []struct {

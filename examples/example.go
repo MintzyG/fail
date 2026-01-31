@@ -17,7 +17,12 @@ import (
 var (
 	// Auth Domain
 	AuthInvalidCredentials = fail.ID(0, "AUTH", 0, true, "AuthInvalidCredentials")
-	ErrInvalidCreds        = fail.Form(AuthInvalidCredentials, "invalid username or password", false, nil)
+	ErrInvalidCreds        = fail.Form(AuthInvalidCredentials, "invalid username or password", false, nil).
+				AddLocalizations(map[string]string{
+			"pt-BR": "usuário ou senha inválidos",
+			"es-ES": "usuario o contraseña inválidos",
+			"zh-CN": "用户名或密码无效",
+		})
 
 	AuthTokenExpired = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")
 	// Sentinel for generic expiration
@@ -258,4 +263,23 @@ func main() {
 	fmt.Println("\n--- 6. Export Documentation ---")
 	docs, _ := fail.ExportIDList()
 	fmt.Printf("Registered IDs (JSON snippet):\n%s\n", string(docs))
+
+	// 7. Localization
+	fmt.Println("\n--- 7. Localization ---")
+	locErr := fail.New(AuthInvalidCredentials)
+
+	// Default (English)
+	fmt.Printf("En-US: %s\n", locErr.Localize().Message)
+
+	// Portuguese
+	locErr.Locale = "pt-BR"
+	fmt.Printf("Pt-BR: %s\n", locErr.Localize().Message)
+
+	// Spanish
+	locErr.Locale = "es-ES"
+	fmt.Printf("Es-ES: %s\n", locErr.Localize().Message)
+
+	// Chinese
+	locErr.Locale = "zh-CN"
+	fmt.Printf("Zh-CN: %s\n", locErr.Localize().Message)
 }
