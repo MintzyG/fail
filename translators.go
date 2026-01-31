@@ -93,6 +93,10 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 		return nil, New(TranslateUnsupportedError).With(err)
 	}
 
+	r.hooks.runTranslate(err, map[string]any{
+		"translator": translatorName,
+	})
+
 	defer func() {
 		if rec := recover(); rec != nil {
 			retErr = New(TranslatePanic).With(err). // original error being translated

@@ -57,6 +57,8 @@ func Form(id ErrorID, defaultMsg string, isSystem bool, meta map[string]any) *Er
 
 	global.Register(def)
 
+	global.hooks.runForm(id, &def)
+
 	return New(id)
 }
 

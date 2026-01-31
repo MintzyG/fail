@@ -68,6 +68,14 @@ func (e *Error) Internalf(format string, args ...any) *Error {
 // With sets the cause of the error
 func (e *Error) With(cause error) *Error {
 	e.Cause = cause
+
+	// Get registry first (with fallback)
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+	reg.hooks.runWrap(e, cause)
+
 	return e
 }
 
@@ -180,11 +188,12 @@ func (e *Error) Log() *Error {
 
 	// Run hook regardless of logger config
 	reg.hooks.runLog(e, map[string]any{
-		"id":      e.ID.String(),
-		"domain":  e.ID.Domain(),
-		"level":   e.ID.Level(),
-		"message": e.Message,
-		"source":  "log",
+		"id":        e.ID.String(),
+		"domain":    e.ID.Domain(),
+		"level":     e.ID.Level(),
+		"message":   e.Message,
+		"is_system": e.IsSystem,
+		"source":    "log",
 	})
 
 	// Logging is separate concern
@@ -208,11 +217,12 @@ func (e *Error) LogCtx(ctx context.Context) *Error {
 
 	// Run hook regardless of logger config
 	reg.hooks.runLog(e, map[string]any{
-		"id":      e.ID.String(),
-		"domain":  e.ID.Domain(),
-		"level":   e.ID.Level(),
-		"message": e.Message,
-		"source":  "logCtx",
+		"id":        e.ID.String(),
+		"domain":    e.ID.Domain(),
+		"level":     e.ID.Level(),
+		"message":   e.Message,
+		"is_system": e.IsSystem,
+		"source":    "logCtx",
 	})
 
 	// Logging is separate concern
@@ -229,6 +239,21 @@ func (e *Error) LogCtx(ctx context.Context) *Error {
 
 // Record automatically traces the error using the configured tracer
 func (e *Error) Record() *Error {
+	// Get registry first (with fallback)
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+
+	reg.hooks.runTrace(e, map[string]any{
+		"id":        e.ID.String(),
+		"domain":    e.ID.Domain(),
+		"level":     e.ID.Level(),
+		"message":   e.Message,
+		"is_system": e.IsSystem,
+		"source":    "record",
+	})
+
 	global.mu.RLock()
 	tracer := global.tracer
 	global.mu.RUnlock()
@@ -243,6 +268,21 @@ func (e *Error) Record() *Error {
 }
 
 func (e *Error) RecordCtx(ctx context.Context) *Error {
+	// Get registry first (with fallback)
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+
+	reg.hooks.runTrace(e, map[string]any{
+		"id":        e.ID.String(),
+		"domain":    e.ID.Domain(),
+		"level":     e.ID.Level(),
+		"message":   e.Message,
+		"is_system": e.IsSystem,
+		"source":    "recordCtx",
+	})
+
 	global.mu.RLock()
 	tracer := global.tracer
 	global.mu.RUnlock()
