@@ -133,14 +133,12 @@ func TestRendering(t *testing.T) {
 	})
 
 	t.Run("Render should add warning if placeholders exist but no args", func(t *testing.T) {
-		reg.Form(LocTemplateID, "Need args %s", false, nil)
-
 		err := reg.New(LocTemplateID)
 		err.Args = nil // explicit nil
 
 		err.Render()
-		if err.Message != "Need args %s" {
-			t.Errorf("Expected original template when no args, got '%s'", err.Message)
+		if err.Message != "Hello %s" {
+			t.Errorf("Expected original template 'Hello %%s' when no args, got '%s'", err.Message)
 		}
 
 		if err.Meta == nil || err.Meta["fail.render_warning"] == nil {

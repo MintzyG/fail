@@ -51,6 +51,11 @@ func (r *Registry) Register(err *Error) {
 		panic(fmt.Sprintf("cannot register untrusted error ID: %s (must use fail.ID() to create)", err.ID))
 	}
 
+	// First register wins (idempotent)
+	if _, exists := r.errors[err.ID.String()]; exists {
+		return
+	}
+
 	r.errors[err.ID.String()] = err
 }
 

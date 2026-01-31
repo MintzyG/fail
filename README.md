@@ -44,15 +44,14 @@ var Bad3 = fail.ID(0, "AUTH", 2, true, "AuthInvalidCredential")  // Too close!
 ### 🎨 One-Line Error Registration
 
 ```go
-// Old way - verbose
-fail.Register(fail.ErrorDefinition{
-    ID:             UserNotFound,
-    DefaultMessage: "user not found",
-    IsSystem:       false,
-})
+// Form() creates sentinel, registers it, and supports translations/default args!
+var ErrUserNotFound = fail.Form(UserNotFound, "user %s not found", false, nil).
+    AddLocalizations(map[string]string{
+        "pt-BR": "usuário %s não encontrado",
+        "es-ES": "usuario %s no encontrado",
+    })
 
-// New way - Form() creates sentinel and registers in one line!
-var ErrUserNotFound = fail.Form(UserNotFound, "user not found", false, nil)
+// Registration is IDEMPOTENT - first register wins! 🛡️
 ```
 
 ### 📋 Auto-Documentation
@@ -86,94 +85,67 @@ var (
     AuthTokenExpired       = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")
     AuthValidationFailed   = fail.ID(0, "AUTH", 0, false, "AuthValidationFailed") // Dynamic!
 )
-
-// User domain - names MUST start with "User"
-var (
-    UserNotFound         = fail.ID(0, "USER", 0, true, "UserNotFound")
-    UserEmailExists      = fail.ID(0, "USER", 1, true, "UserEmailExists")
-    UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed")
-)
 ```
 
-### 2. Register Errors
+### 2. Register Errors with Localization
 
 ```go
-// Option 1: Traditional registration
-func init() {
-    fail.RegisterMany(
-        fail.ErrorDefinition{
-            ID:             AuthInvalidCredentials,
-            DefaultMessage: "invalid credentials",
-            IsSystem:       false,
-        },
-    )
-}
-
-// Option 2: Form() - one-liner sentinels! 🎉
+// Form() - one-liner sentinels with translations! 🎉
 var (
-    ErrUserNotFound    = fail.Form(UserNotFound, "user not found", false, nil)
-    ErrUserEmailExists = fail.Form(UserEmailExists, "email already registered", false, nil)
+    ErrUserNotFound = fail.Form(UserNotFound, "user %s not found", false, nil).
+        AddLocalizations(map[string]string{
+            "pt-BR": "usuário %s não encontrado",
+            "es-ES": "usuario %s no encontrado",
+        })
 )
 ```
 
 ### 3. Use Everywhere
 
 ```go
-func Login(email, password string) error {
-    // Static error
-    if !valid {
-        return fail.New(AuthInvalidCredentials)
-    }
-    
-    // Dynamic error
-    return fail.New(AuthValidationFailed).
-        Msg("authentication failed").
-        Validation("email", "invalid format").
-        Trace("checked credentials")
-}
-
-func GetUser(id int) (*User, error) {
-    user, err := db.GetUser(id)
+func GetUser(email string) (*User, error) {
+    user, err := db.GetUser(email)
     if err != nil {
-        // Using sentinel
-        return nil, ErrUserNotFound
+        // Localization + Rendering
+        return nil, fail.New(UserNotFound).
+            WithLocale("pt-BR").
+            WithArgs(email)
     }
     return user, nil
 }
 ```
 
-### 4. Handle Errors
+### 4. Render & Handle
 
 ```go
-func HandleLogin(w http.ResponseWriter, r *http.Request) {
-    err := Login(email, password)
+func HandleRequest(w http.ResponseWriter, r *http.Request) {
+    _, err := GetUser("alice@example.com")
     if err != nil {
-        // Translate to HTTP response
-        resp, _ := fail.Translate(fail.From(err), "http")
-        // ... handle response
-        return
+        // err.Error() automatically calls Render()!
+        fmt.Println(err.Error()) 
+        // Output: [0_USER_0000_S] usuário alice@example.com não encontrado
     }
-    
-    w.WriteHeader(200)
 }
 ```
 
-## 🎯 ID Format
+## 🌐 Localization & Rendering
 
-Format: `LEVEL_DOMAIN_NNNN_(S|D)`
+FAIL provides first-class support for multi-language applications and dynamic message templates.
 
-- **LEVEL**: Severity level (0-9)
-- **DOMAIN**: Error category (AUTH, USER, DB, etc.)
-- **NNNN**: 4-digit explicit number (0000-9999)
-- **S/D**: Static or Dynamic message
-
-**Explicit Numbering:**
+### Template Rendering
+Use standard `fmt` placeholders in your messages:
 ```go
-// Numbers are assigned explicitly for stability
-AuthInvalidCredentials // 0_AUTH_0000_S
-AuthTokenExpired       // 0_AUTH_0001_S
+err := fail.New(UserNotFound).WithArgs("bob@fail.com")
+msg := err.Render().Message // "user bob@fail.com not found"
+```
 
-// IDs remain stable even if you reorder files!
+### Switching Locales
+```go
+// Global fallback
+fail.SetDefaultLocale("en-US")
+
+// Per-error instance
+err.WithLocale("es-ES").Localize()
 ```
 
 ## 🎨 Core Features
@@ -182,15 +154,15 @@ AuthTokenExpired       // 0_AUTH_0001_S
 
 ```go
 err := fail.New(UserValidationFailed).
-    Msg("validation failed").
-    Msgf("failed for user %s", email).
+    WithLocale("fr-FR").            // Set target language
+    WithArgs("admin").              // Set template arguments
+    Localize().                     // Resolve translation
+    Render().                       // Format message
+    Msg("override message").        // Manual override
     With(cause).
     Internal("debug info").
     Trace("step 1").
-    Debug("SQL: SELECT...").
     Validation("email", "invalid").
-    WithMeta(map[string]any{"key": "value"}).
-    System().
     LogAndRecord()
 ```
 
