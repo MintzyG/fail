@@ -12,9 +12,16 @@ const (
 	Dynamic ErrorType = "D" // Message can vary per occurrence
 )
 
-// New creates a new error from a registered definition
+// New returns a new Error from a registered definition
 func New(id ErrorID) *Error {
 	return global.New(id)
+}
+
+// Newf returns a new Error from a registered definition with a new formatted message
+func Newf(id ErrorID, format string, args ...interface{}) *Error {
+	err := New(id)
+	err.Message = fmt.Sprintf(format, args...)
+	return err
 }
 
 // From ingests a generic error and transforms it to an Error

@@ -71,8 +71,14 @@ func (e *Error) With(cause error) *Error {
 	return e
 }
 
-// WithMeta sets a metadata value
-func (e *Error) WithMeta(key string, value any) *Error {
+// WithMeta sets the metadata to data, it replaces existing metadata to merge use MergeMeta
+func (e *Error) WithMeta(data map[string]any) *Error {
+	e.Meta = data
+	return e
+}
+
+// AddMeta sets a metadata value
+func (e *Error) AddMeta(key string, value any) *Error {
 	if e.Meta == nil {
 		e.Meta = make(map[string]any)
 	}

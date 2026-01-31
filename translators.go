@@ -30,19 +30,19 @@ var ErrTranslatorNameEmpty = Form(TranslatorNameEmpty, "translator must have a n
 
 func (r *Registry) RegisterTranslator(t Translator) error {
 	if t == nil {
-		return ErrTranslatorNil
+		return New(TranslatorNil)
 	}
 
 	name := t.Name()
 	if name == "" {
-		return ErrTranslatorNameEmpty
+		return New(TranslatorNameEmpty)
 	}
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	if _, exists := r.translators[name]; exists {
-		return ErrTranslatorAlreadyRegistered.WithMeta("name", name)
+		return New(TranslatorAlreadyRegistered).AddMeta("name", name)
 	}
 
 	r.translators[name] = t
@@ -78,7 +78,7 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 	}
 
 	if !err.trusted {
-		return nil, ErrTranslateUntrustedError.With(err)
+		return nil, New(TranslateUntrustedError).With(err)
 	}
 
 	r.mu.RLock()
@@ -86,18 +86,18 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 	r.mu.RUnlock()
 
 	if !exists {
-		return nil, ErrTranslateNotFound.WithMeta("name", translatorName)
+		return nil, New(TranslateNotFound).AddMeta("name", translatorName)
 	}
 
 	if !translator.Supports(err) {
-		return nil, ErrTranslateUnsupportedError.With(err)
+		return nil, New(TranslateUnsupportedError).With(err)
 	}
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			retErr = ErrTranslatePanic.With(err). // original error being translated
-								WithMeta("translator", translatorName).
-								WithMeta("panic", rec)
+			retErr = New(TranslatePanic).With(err). // original error being translated
+								AddMeta("translator", translatorName).
+								AddMeta("panic", rec)
 		}
 	}()
 
@@ -125,9 +125,9 @@ func TranslateAsFrom[T any](r *Registry, err *Error, translatorName string) (T, 
 
 	typed, ok := out.(T)
 	if !ok {
-		return zero, ErrTranslateWrongType.
+		return zero, New(TranslateWrongType).
 			With(err).
-			WithMeta("translator", translatorName)
+			AddMeta("translator", translatorName)
 	}
 
 	return typed, nil
