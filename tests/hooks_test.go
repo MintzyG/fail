@@ -1,0 +1,65 @@
+package fail_test
+
+import (
+	"errors"
+	"testing"
+
+	"fail"
+)
+
+var HookID = fail.ID(0, "HOOKS", 1, true, "HooksLifecycleError")
+
+func TestHooks_Lifecycle(t *testing.T) {
+	// Hooks are global, so we must be careful.
+	// We'll register hooks that flip flags.
+
+	created := false
+	logged := false
+	matched := false
+
+	fail.OnCreate(func(e *fail.Error, data map[string]any) {
+		if e.ID == HookID {
+			created = true
+		}
+	})
+
+	fail.OnLog(func(e *fail.Error, data map[string]any) {
+		logged = true
+	})
+
+	fail.OnMatch(func(e *fail.Error, data map[string]any) {
+		matched = true
+	})
+
+	// Trigger Create
+	fail.Register(fail.ErrorDefinition{ID: HookID})
+	err := fail.New(HookID)
+
+	if !created {
+		t.Error("OnCreate hook failed")
+	}
+
+	// Trigger Log
+	err.Log()
+	if !logged {
+		t.Error("OnLog hook failed")
+	}
+
+	// Trigger Match
+	fail.Match(err).Case(HookID, func(e *fail.Error) {})
+	if !matched {
+		t.Error("OnMatch hook failed")
+	}
+}
+
+func TestHooks_MapFrom(t *testing.T) {
+	mapped := false
+	fail.OnFrom(func(orig error, res *fail.Error) {
+		mapped = true
+	})
+
+	fail.From(errors.New("triggers map"))
+	if !mapped {
+		t.Error("OnFrom hook failed")
+	}
+}
