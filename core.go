@@ -157,3 +157,29 @@ func Register(def ErrorDefinition) {
 
 var UnknownError = internalID(0, 7, false, "FailUnknownError")
 var ErrUnknownError = Form(UnknownError, "unknown error", true, nil)
+
+// AllowInternalLogs enables or disables internal library logging.
+// When enabled, the library will log warnings and debug information
+// about error processing, such as:
+//   - Double calls to From()
+//   - Unmapped errors
+//   - Mapper registration issues
+//
+// This is useful for debugging integration issues but should be disabled
+// in production to avoid log spam. Default is false.
+//
+// Example:
+//
+//	fail.AllowInternalLogs(true)  // Enable logging
+//	fail.AllowInternalLogs(false) // Disable logging (default)
+func AllowInternalLogs(allow bool) {
+	global.AllowInternalLogs(allow)
+}
+
+// AllowInternalLogs enables or disables internal library logging for this registry.
+// See AllowInternalLogs for details.
+func (r *Registry) AllowInternalLogs(allow bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.allowInternalLogs = allow
+}

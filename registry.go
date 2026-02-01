@@ -23,6 +23,8 @@ type Registry struct {
 
 	tracer Tracer
 	logger Logger
+
+	allowInternalLogs bool
 }
 
 // Global registry - users can also create their own
@@ -129,14 +131,21 @@ func (r *Registry) From(err error) *Error {
 		return nil
 	}
 
-	// Already a fail.Error? Check if we should re-process or return as-is
+	if r.allowInternalLogs {
+		log.Printf("[fail] From() called with: %T, msg=%q", err, err.Error())
+	}
+
 	var e *Error
 	if errors.As(err, &e) {
 		if e.createdByFrom {
-			log.Printf("[fail] From() called on already-processed error: ID(%s)", e.ID.String())
+			if r.allowInternalLogs {
+				log.Printf("[fail] From() called on already-processed error: ID(%s)", e.ID.String())
+			}
 			return e
 		} else {
-			log.Printf("[fail] From() called on defined fail.Error with ID(%s) consider removing redundant From() call:", e.ID.String())
+			if r.allowInternalLogs {
+				log.Printf("[fail] From() called on already defined fail.Error with ID(%s), consider removing redundant From() call", e.ID.String())
+			}
 			r.hooks.runFromSuccess(err, e)
 			return e
 		}
@@ -144,6 +153,7 @@ func (r *Registry) From(err error) *Error {
 
 	r.mu.RLock()
 	mappers := r.genericMappers
+	allowLogs := r.allowInternalLogs
 	r.mu.RUnlock()
 
 	if mappers != nil {
@@ -154,8 +164,13 @@ func (r *Registry) From(err error) *Error {
 			r.hooks.runFromSuccess(err, fe)
 			return fe
 		}
+		if allowLogs {
+			log.Printf("[fail] No mapper matched error: %T, msg=%q", err, err.Error())
+		}
 	} else {
-		// No mapper registered
+		if allowLogs {
+			log.Printf("[fail] No mappers registered")
+		}
 		result := New(NoMapperRegistered).With(err)
 		r.hooks.runFromFail(err)
 		return result
