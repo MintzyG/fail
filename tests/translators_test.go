@@ -23,7 +23,7 @@ func (m *MockTranslator) Translate(e *fail.Error) (any, error) {
 
 func TestTranslators(t *testing.T) {
 	tr := &MockTranslator{Supported: true}
-	fail.RegisterTranslator(tr)
+	_ = fail.RegisterTranslator(tr)
 
 	// Ensure ID is ready
 	fail.Register(fail.ErrorDefinition{ID: CoreTestID})

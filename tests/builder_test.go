@@ -115,8 +115,8 @@ type mockTrace struct {
 	called bool
 }
 
-func (m *mockTrace) Trace(op string, fn func() error) error { m.called = true; return fn() }
-func (m *mockTrace) TraceCtx(ctx context.Context, op string, fn func(context.Context) error) error {
+func (m *mockTrace) Trace(_ string, fn func() error) error { m.called = true; return fn() }
+func (m *mockTrace) TraceCtx(ctx context.Context, _ string, fn func(context.Context) error) error {
 	m.called = true
 	return fn(ctx)
 }

@@ -10,8 +10,8 @@ import (
 )
 
 var (
-	AdminUsernameEmpty    = fail.ID(0, "ADMIN", 0, true, "AdminUsernameEmpty")
-	ErrAdminUsernameEmpty = fail.Form(AdminUsernameEmpty, "username cannot be empty", false, nil)
+	AdminUsernameEmpty = fail.ID(0, "ADMIN", 0, true, "AdminUsernameEmpty")
+	_                  = fail.Form(AdminUsernameEmpty, "username cannot be empty", false, nil)
 )
 
 type SlogLogger struct {
@@ -63,7 +63,7 @@ func main() {
 	fmt.Println("=== Slog Logger Example ===")
 
 	// Use fail.New(ID) to avoid mutating the sentinel with AddMeta
-	fail.New(AdminUsernameEmpty).
+	_ = fail.New(AdminUsernameEmpty).
 		AddMeta("user_id", 123).
 		Log()
 }

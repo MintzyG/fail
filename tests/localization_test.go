@@ -18,7 +18,7 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 	// Create a fresh registry to avoid polluting global state and to test initialization
 	reg := fail.NewRegistry("localization_test")
 
-	reg.Form(LocTestID, "default message", false, nil)
+	_ = reg.Form(LocTestID, "default message", false, nil)
 
 	t.Run("RegisterTranslations should not panic", func(t *testing.T) {
 		msgs := map[fail.ErrorID]string{
@@ -40,7 +40,7 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 			t.Errorf("Expected 'default message', got '%s'", err.Message)
 		}
 
-		err.Localize()
+		_ = err.Localize()
 		if err.Message != "mensaje traducido" {
 			t.Errorf("Expected 'mensaje traducido', got '%s'", err.Message)
 		}
@@ -56,7 +56,7 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 		err := reg.New(LocTestID)
 		// No locale set on error
 
-		err.Localize()
+		_ = err.Localize()
 		if err.Message != "message traduit" {
 			t.Errorf("Expected 'message traduit', got '%s'", err.Message)
 		}
@@ -66,7 +66,7 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 		err := reg.New(LocTestID)
 		err.Locale = "de-DE" // No translations for German
 
-		err.Localize()
+		_ = err.Localize()
 		if err.Message != "default message" {
 			t.Errorf("Expected 'default message', got '%s'", err.Message)
 		}
@@ -75,15 +75,15 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 
 func TestRendering(t *testing.T) {
 	reg := fail.NewRegistry("localization_test")
-	reg.Form(LocTemplateID, "Hello %s", false, nil)
-	reg.Form(LocArgID, "Value: %d", false, nil, 42) // Default arg 42
+	_ = reg.Form(LocTemplateID, "Hello %s", false, nil)
+	_ = reg.Form(LocArgID, "Value: %d", false, nil, 42) // Default arg 42
 
 	t.Run("Render should format message with args", func(t *testing.T) {
 		// fail.Error has Args field.
 		err := reg.New(LocTemplateID)
 		err.Args = []any{"World"}
 
-		err.Render()
+		_ = err.Render()
 		if err.Message != "Hello World" {
 			t.Errorf("Expected 'Hello World', got '%s'", err.Message)
 		}
@@ -99,7 +99,7 @@ func TestRendering(t *testing.T) {
 		err.Args = []any{"Mundo"}
 
 		// Render uses e.Message. If it's already set (by New), it won't re-localize automatically unless we call Localize.
-		err.Localize().Render()
+		_ = err.Localize().Render()
 		if err.Message != "Hola Mundo" {
 			t.Errorf("Expected 'Hola Mundo', got '%s'", err.Message)
 		}
@@ -109,19 +109,19 @@ func TestRendering(t *testing.T) {
 		err := reg.New(LocArgID)
 		// Default arg 42 should be used
 
-		err.Render()
+		_ = err.Render()
 		if err.Message != "Value: 42" {
 			t.Errorf("Expected 'Value: 42', got '%s'", err.Message)
 		}
 	})
 
 	t.Run("Render should safe guard against panic", func(t *testing.T) {
-		reg.Form(LocBadFormatID, "Bad %v", false, nil)
+		_ = reg.Form(LocBadFormatID, "Bad %v", false, nil)
 
 		err := reg.New(LocBadFormatID)
 		err.Args = []any{panicStringer{}}
 
-		err.Render()
+		_ = err.Render()
 		// fmt.Sprintf handles panics in String() by printing a special message
 		// e.g. "Bad %!v(PANIC=String method: oops)"
 		if !strings.Contains(err.Message, "PANIC") {
@@ -136,7 +136,7 @@ func TestRendering(t *testing.T) {
 		err := reg.New(LocTemplateID)
 		err.Args = nil // explicit nil
 
-		err.Render()
+		_ = err.Render()
 		if err.Message != "Hello %s" {
 			t.Errorf("Expected original template 'Hello %%s' when no args, got '%s'", err.Message)
 		}
@@ -147,7 +147,7 @@ func TestRendering(t *testing.T) {
 	})
 
 	t.Run("GetRendered should return rendered string without modifying error", func(t *testing.T) {
-		reg.Form(LocTemplateID, "Hello %s", false, nil)
+		_ = reg.Form(LocTemplateID, "Hello %s", false, nil)
 
 		err := reg.New(LocTemplateID)
 		err.Args = []any{"Universe"}
@@ -220,7 +220,7 @@ func TestAddLocalization_Chaining(t *testing.T) {
 			}
 
 			// Localize explicitly
-			err.Localize()
+			_ = err.Localize()
 
 			if err.Message != tt.expected {
 				t.Errorf("Locale %s: expected '%s', got '%s'", tt.locale, tt.expected, err.Message)

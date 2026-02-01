@@ -40,7 +40,7 @@ func TestHooks_Lifecycle(t *testing.T) {
 	}
 
 	// Trigger Log
-	err.Log()
+	_ = err.Log()
 	if !logged {
 		t.Error("OnLog hook failed")
 	}
@@ -58,7 +58,7 @@ func TestHooks_MapFrom(t *testing.T) {
 		mapped = true
 	})
 
-	fail.From(errors.New("triggers map"))
+	_ = fail.From(errors.New("triggers map"))
 	if !mapped {
 		t.Error("OnFrom hook failed")
 	}

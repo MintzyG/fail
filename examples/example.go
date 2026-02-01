@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -28,14 +29,14 @@ var (
 	AuthTokenExpired = fail.ID(0, "AUTH", 1, true, "AuthTokenExpired")
 	// Sentinel for generic expiration
 
-	ErrAuthTokenExpired = fail.Form(AuthTokenExpired, "authentication token has expired", false, nil)
+	_ = fail.Form(AuthTokenExpired, "authentication token has expired", false, nil)
 
-	AuthRateLimitExceeded = fail.ID(1, "AUTH", 0, false, "AuthRateLimitExceeded")
+	_ = fail.ID(1, "AUTH", 0, false, "AuthRateLimitExceeded")
 
 	// User Domain
 
-	UserNotFound    = fail.ID(0, "USER", 0, true, "UserNotFound")
-	ErrUserNotFound = fail.Form(UserNotFound, "user was not found in the system", false, nil)
+	UserNotFound = fail.ID(0, "USER", 0, true, "UserNotFound")
+	_            = fail.Form(UserNotFound, "user was not found in the system", false, nil)
 
 	UserValidationFailed = fail.ID(0, "USER", 0, false, "UserValidationFailed")
 
@@ -56,7 +57,7 @@ type MyLogger struct{}
 func (l *MyLogger) Log(e *fail.Error) {
 	fmt.Printf("[LOG] %s: %s (System=%v)\n", e.ID, e.Message, e.IsSystem)
 }
-func (l *MyLogger) LogCtx(ctx context.Context, e *fail.Error) {
+func (l *MyLogger) LogCtx(_ context.Context, e *fail.Error) {
 	fmt.Printf("[LOG+CTX] %s: %s\n", e.ID, e.Message)
 }
 
@@ -73,10 +74,10 @@ func (t *MyTracer) TraceCtx(ctx context.Context, op string, fn func(context.Cont
 
 type MyMapper struct{}
 
-func (m *MyMapper) Name() string                              { return "MyMapper" }
-func (m *MyMapper) Priority() int                             { return 100 }
-func (m *MyMapper) Map(err error) (error, bool)               { return nil, false }
-func (m *MyMapper) MapFromFail(err *fail.Error) (error, bool) { return nil, false }
+func (m *MyMapper) Name() string                            { return "MyMapper" }
+func (m *MyMapper) Priority() int                           { return 100 }
+func (m *MyMapper) Map(_ error) (error, bool)               { return nil, false }
+func (m *MyMapper) MapFromFail(_ *fail.Error) (error, bool) { return nil, false }
 func (m *MyMapper) MapToFail(err error) (*fail.Error, bool) {
 	if err.Error() == "sql: connection refused" {
 		// Use sentinel for connection failures as they are usually static
@@ -93,8 +94,8 @@ type HTTPResponse struct {
 
 type HTTPTranslator struct{}
 
-func (t *HTTPTranslator) Name() string                { return "http" }
-func (t *HTTPTranslator) Supports(e *fail.Error) bool { return true }
+func (t *HTTPTranslator) Name() string                 { return "http" }
+func (t *HTTPTranslator) Supports(_ *fail.Error) error { return nil }
 func (t *HTTPTranslator) Translate(e *fail.Error) (any, error) {
 	status := 500
 	if !e.IsSystem {
@@ -121,10 +122,12 @@ func setup() {
 	fail.SetLogger(&MyLogger{})
 	fail.SetTracer(&MyTracer{})
 	fail.RegisterMapper(&MyMapper{})
-	fail.RegisterTranslator(&HTTPTranslator{})
+	if err := fail.RegisterTranslator(&HTTPTranslator{}); err != nil {
+		log.Fatalf("fail register translator: %v", err)
+	}
 
 	fail.OnCreate(func(e *fail.Error, data map[string]any) {
-		e.AddMeta("timestamp", time.Now().Unix())
+		_ = e.AddMeta("timestamp", time.Now().Unix())
 	})
 }
 
@@ -170,13 +173,13 @@ func simulateParallelValidation() error {
 	go func() {
 		defer wg.Done()
 		// Use New(ID) for thread-safe dynamic errors
-		g.Add(fail.New(UserValidationFailed).Msg("email is invalid"))
+		_ = g.Add(fail.New(UserValidationFailed).Msg("email is invalid"))
 	}()
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		g.Add(fail.New(UserValidationFailed).Msg("password is too short"))
+		_ = g.Add(fail.New(UserValidationFailed).Msg("password is too short"))
 	}()
 
 	wg.Wait()
@@ -187,7 +190,7 @@ func simulateParallelValidation() error {
 	return nil
 }
 
-func simulateWorkflow(ctx context.Context) error {
+func simulateWorkflow(_ context.Context) error {
 	return fail.Chain(func() error {
 		return simulateAuth("valid_token")
 	}).
@@ -260,7 +263,7 @@ func main() {
 	fmt.Println("\n--- 5. Chaining & Trace ---")
 	err = simulateWorkflow(context.Background())
 	if err != nil {
-		err.(*fail.Error).LogAndRecord()
+		_ = err.(*fail.Error).LogAndRecord()
 	}
 
 	// 6. Documentation

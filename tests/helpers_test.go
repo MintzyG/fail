@@ -51,7 +51,7 @@ func TestHelpers_Must(t *testing.T) {
 
 func TestHelpers_MustNew(t *testing.T) {
 	// Registered -> ok
-	fail.MustNew(HelperID)
+	_ = fail.MustNew(HelperID)
 
 	// Unregistered (mock by using an ID created manually if possible, or untrusted?)
 	// Since we can't easily create an untrusted ID that looks valid without ID(),

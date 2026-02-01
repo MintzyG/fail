@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/MintzyG/fail"
@@ -10,10 +12,10 @@ import (
 
 var (
 	UserValidationFailed = fail.ID(0, "USER", 9, false, "UserValidationFailed")
-	ErrUserValidation    = fail.Form(UserValidationFailed, "validation failed", false, nil)
+	_                    = fail.Form(UserValidationFailed, "validation failed", false, nil)
 
 	CannotTranslateToHTTP = fail.ID(5, "TR", 0, false, "TRCannotTranslateToHTTP")
-	ErrCannotTranslate    = fail.Form(CannotTranslateToHTTP, "cannot translate error to http", true, nil)
+	_                     = fail.Form(CannotTranslateToHTTP, "cannot translate error to http", true, nil)
 )
 
 type HTTPResponse struct {
@@ -31,11 +33,16 @@ func HTTPResponseTranslator() *HTTPTranslator {
 	return &HTTPTranslator{IncludeErrorID: true}
 }
 
-func (h *HTTPTranslator) Name() string                  { return "http" }
-func (h *HTTPTranslator) Supports(err *fail.Error) bool { return err != nil && err.IsTrusted() }
+func (h *HTTPTranslator) Name() string { return "http" }
+func (h *HTTPTranslator) Supports(err *fail.Error) error {
+	if err != nil && err.IsTrusted() {
+		return nil
+	}
+	return errors.New("unsupported")
+}
 
 func (h *HTTPTranslator) Translate(err *fail.Error) (any, error) {
-	if !h.Supports(err) {
+	if err := h.Supports(err); err != nil {
 		return nil, fail.New(CannotTranslateToHTTP).With(err)
 	}
 
@@ -68,7 +75,9 @@ func (h *HTTPTranslator) getStatusCode(err *fail.Error) int {
 func main() {
 	fmt.Println("=== HTTP Translator Example ===")
 
-	fail.RegisterTranslator(HTTPResponseTranslator())
+	if err := fail.RegisterTranslator(HTTPResponseTranslator()); err != nil {
+		log.Fatal(err)
+	}
 
 	// Use fail.New(ID) to avoid mutating sentinel
 	err := fail.New(UserValidationFailed).

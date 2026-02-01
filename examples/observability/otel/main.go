@@ -16,8 +16,8 @@ import (
 )
 
 var (
-	UserUsernameEmpty    = fail.ID(0, "USER", 4, true, "UserUsernameEmpty")
-	ErrUserUsernameEmpty = fail.Form(UserUsernameEmpty, "username cannot be empty", false, nil)
+	UserUsernameEmpty = fail.ID(0, "USER", 4, true, "UserUsernameEmpty")
+	_                 = fail.Form(UserUsernameEmpty, "username cannot be empty", false, nil)
 )
 
 type OTelTracer struct {

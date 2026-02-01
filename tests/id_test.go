@@ -26,6 +26,9 @@ func expectPanic(t *testing.T, expectedSnippet string, fn func()) {
 }
 
 func TestID_ValidRegistration(t *testing.T) {
+	fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(true)
+	defer fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(false)
+
 	// We need to be careful with global state.
 	// In a real scenario, we might want to reset the registry, but ID() is designed for init() time.
 	// We'll use a unique domain for this test to avoid conflicts.
@@ -50,6 +53,9 @@ func TestID_ValidRegistration(t *testing.T) {
 }
 
 func TestID_ValidationPanics(t *testing.T) {
+	fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(true)
+	defer fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(false)
+
 	// 1. Reserved Domain
 	expectPanic(t, "reserved for internal errors", func() {
 		fail.ID(0, "FAIL", 0, true, "FailSomething")
@@ -84,6 +90,9 @@ func TestID_ValidationPanics(t *testing.T) {
 }
 
 func TestExportIDList(t *testing.T) {
+	fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(true)
+	defer fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(false)
+
 	// Register a known ID to check export
 	fail.ID(1, "EXPORT", 55, false, "ExportTestError")
 
@@ -113,6 +122,33 @@ func TestExportIDList(t *testing.T) {
 	if !found {
 		t.Error("Did not find registered ID in export")
 	}
+}
+
+func TestID_RuntimeBlocking(t *testing.T) {
+	// Ensure override is off
+	fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(false)
+	fail.AllowRuntimePanics(false)
+
+	// This should return the invalid ID and log a critical error
+	id := fail.ID(0, "BLCK", 0, true, "BlockedTest")
+
+	if id.Name() != "FailRuntimeIDInvalid" {
+		t.Errorf("Expected invalid ID name, got %s", id.Name())
+	}
+	// It's an internal library-generated ID, so it is trusted.
+	if !id.IsTrusted() {
+		t.Error("Invalid ID sentinel should be trusted")
+	}
+}
+
+func TestID_RuntimePanic(t *testing.T) {
+	fail.OverrideAllowIDRuntimeRegistrationForTestingOnly(false)
+	fail.AllowRuntimePanics(true)
+	defer fail.AllowRuntimePanics(false)
+
+	expectPanic(t, "All error IDs must be defined at package initialization time", func() {
+		fail.ID(0, "PANIC", 0, true, "PanicTest")
+	})
 }
 
 // Note: ValidateIDs panic logic is hard to test without polluting global state with "bad" gaps,

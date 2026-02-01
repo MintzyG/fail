@@ -156,7 +156,7 @@ func (e *Error) checkStatic(builderName string) bool {
 		reg = global
 	}
 
-	if reg.panicOnStaticMutations && reg.allowRuntimePanics {
+	if reg.panicOnStaticMutations && allowRuntimePanics {
 		panic(fmt.Sprintf("[fail] error: builder %s() called on static error with ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String()))
 	} else if reg.allowInternalLogs {
 		log.Printf("[fail] warning: builder %s() called on static error with ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String())
@@ -231,7 +231,8 @@ func (r *Registry) AllowInternalLogs(allow bool) {
 // AllowStaticMutations controls whether static errors in the global registry
 // can be mutated. When set to false (default), builder methods on static errors
 // will silently return the original error without modifications. When set to true,
-// mutations are allowed but warnings are logged if internal logging is enabled.
+// shoudlPanic is ignored and mutations are allowed but warnings are logged
+// if internal logging is enabled.
 //
 // If shouldPanic is true and allow is false, attempts to modify static errors will
 // panic instead of failing silently. This overrides the default silent behavior.
@@ -243,7 +244,7 @@ func AllowStaticMutations(allow bool, shouldPanic bool) {
 
 // AllowStaticMutations controls whether static errors in this registry can be
 // mutated. When allow is false (default), builder methods on static errors return
-// the original error unchanged. When allow is true, mutations are permitted but
+// the original error unchanged. When allow is true shoudlPanic is ignored, mutations are permitted but
 // may log warnings if internal logging is enabled.
 //
 // If shouldPanic is true and allow is false, any builder method called on a static
@@ -263,9 +264,9 @@ func (r *Registry) AllowStaticMutations(allow bool, shouldPanic bool) {
 	r.allowStaticMutations = false
 }
 
-// AllowRuntimePanics controls whether the library may panic at runtime in the
-// global registry. When true, operations that would normally log warnings or
-// fail silently will instead panic immediately (e.g., modifying static errors).
+// AllowRuntimePanics controls whether the library may panic at runtime.
+// When true, operations that would normally log warnings or fail
+// silently will instead panic immediately (e.g., modifying static errors).
 // When false (default), the library avoids panics and uses error logging or
 // silent failures where appropriate.
 //
@@ -273,25 +274,6 @@ func (r *Registry) AllowStaticMutations(allow bool, shouldPanic bool) {
 //
 // Enabling this is recommended during development and testing to catch
 // programming errors early, but should typically be disabled in production.
-//
-// This is a convenience wrapper for global.AllowRuntimePanics(allow).
 func AllowRuntimePanics(allow bool) {
-	global.AllowRuntimePanics(allow)
-}
-
-// AllowRuntimePanics controls whether the library may panic at runtime.
-// When true, operations that would normally log warnings or fail silently
-// will instead panic immediately. This affects static error mutation attempts
-// and other recoverable programming errors.
-//
-// Note: The ID() method will always panic regardless of this setting.
-//
-// Enabling this is recommended during development and testing to catch
-// programming errors early, but should typically be disabled in production.
-//
-// This method is safe for concurrent use.
-func (r *Registry) AllowRuntimePanics(allow bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.allowRuntimePanics = allow
+	allowRuntimePanics = allow
 }

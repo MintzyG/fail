@@ -28,8 +28,9 @@ type Registry struct {
 	allowInternalLogs      bool
 	allowStaticMutations   bool
 	panicOnStaticMutations bool
-	allowRuntimePanics     bool
 }
+
+var allowRuntimePanics bool
 
 // Global registry - users can also create their own
 var global = &Registry{

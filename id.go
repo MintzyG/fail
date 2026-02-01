@@ -3,6 +3,7 @@ package fail
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"sync"
 )
@@ -64,12 +65,34 @@ func (id ErrorID) IsTrusted() bool {
 	return id.trusted
 }
 
+// OverrideAllowIDRuntimePanics sets global id registry override
+func OverrideAllowIDRuntimePanics(allow bool) {
+	globalIDRegistry.OverrideAllowRuntimePanics(allow)
+}
+
+// OverrideAllowIDRuntimeRegistrationForTestingOnly sets global id registry override for tests
+func OverrideAllowIDRuntimeRegistrationForTestingOnly(allow bool) {
+	globalIDRegistry.mu.Lock()
+	defer globalIDRegistry.mu.Unlock()
+	globalIDRegistry.allowRuntimeRegistration = allow
+}
+
+// OverrideAllowRuntimePanics sets per-registry override
+func (r *IDRegistry) OverrideAllowRuntimePanics(allow bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.allowRuntimePanics = &allow
+}
+
 // IDRegistry manages error ID generation and validation
 // Numbers are explicitly assigned per domain and type (static/dynamic)
 type IDRegistry struct {
 	mu            sync.Mutex
 	registeredIDs map[string]ErrorID // name -> ErrorID
 	numberIndex   map[string]ErrorID // "domain:static:number" -> ErrorID (collision detection)
+
+	allowRuntimePanics       *bool
+	allowRuntimeRegistration bool
 }
 
 // Global ID registry
@@ -111,8 +134,43 @@ func ID(level int, domain string, number int, static bool, name string) ErrorID 
 	return globalIDRegistry.ID(name, domain, static, level, number)
 }
 
+var RuntimeIDInvalid = internalID(9, 16, true, "FailRuntimeIDInvalid")
+
 // ID creates a new trusted ErrorID for this registry
 func (r *IDRegistry) ID(name, domain string, static bool, level, number int) ErrorID {
+	// Critical safety check: ID() must only be called during init/var time
+	r.mu.Lock()
+	allowRuntime := r.allowRuntimeRegistration
+	r.mu.Unlock()
+
+	if !calledBeforeMain() && !allowRuntime {
+		r.mu.Lock()
+		// Force log regardless of allowInternalLogs - this is critical misuse
+		callerFile, callerLine := getCallerInfo(2)
+		log.Printf("[FAIL CRITICAL] ID() called at runtime by %s:%d - name='%s' domain='%s'. "+
+			"All error IDs must be defined at package initialization time (var level or init()). "+
+			"Returning invalid ID.", callerFile, callerLine, name, domain)
+
+		// Check if we should panic
+		shouldPanic := false
+		if r.allowRuntimePanics != nil && *r.allowRuntimePanics {
+			shouldPanic = true
+		} else if allowRuntimePanics {
+			shouldPanic = true
+		}
+		r.mu.Unlock()
+
+		if shouldPanic {
+			panic(fmt.Sprintf(
+				"[FAIL CRITICAL] ID() called at runtime by %s:%d - name='%s' domain='%s'. "+
+					"All error IDs must be defined at package initialization time",
+				callerFile, callerLine, name, domain,
+			))
+		}
+
+		return RuntimeIDInvalid
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

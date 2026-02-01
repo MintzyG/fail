@@ -9,16 +9,16 @@ import (
 
 type TestMapper struct{}
 
-func (m *TestMapper) Name() string                { return "TestMapper" }
-func (m *TestMapper) Priority() int               { return 100 }
-func (m *TestMapper) Map(err error) (error, bool) { return nil, false }
+func (m *TestMapper) Name() string              { return "TestMapper" }
+func (m *TestMapper) Priority() int             { return 100 }
+func (m *TestMapper) Map(_ error) (error, bool) { return nil, false }
 func (m *TestMapper) MapToFail(err error) (*fail.Error, bool) {
 	if err.Error() == "map_me" {
 		return fail.New(CoreTestID2).Msg("mapped"), true // Reuse ID from core_test
 	}
 	return nil, false
 }
-func (m *TestMapper) MapFromFail(err *fail.Error) (error, bool) { return nil, false }
+func (m *TestMapper) MapFromFail(_ *fail.Error) (error, bool) { return nil, false }
 
 func TestMappers_Custom(t *testing.T) {
 	// Ensure ID is registered
