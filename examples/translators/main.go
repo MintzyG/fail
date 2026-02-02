@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+
+	"github.com/MintzyG/fail/v2"
 )
 
 var (

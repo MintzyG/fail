@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/MintzyG/fail/v2"
 	"github.com/jackc/pgconn"
 )
 

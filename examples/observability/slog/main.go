@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+
+	"github.com/MintzyG/fail/v2"
 )
 
 var (

@@ -2,7 +2,7 @@ module examples
 
 go 1.24.12
 
-replace github.com/MintzyG/fail/v2 => ../fail
+replace github.com/MintzyG/fail/v2 => ..
 
 require (
 	github.com/MintzyG/fail/v2 v2.0.1
