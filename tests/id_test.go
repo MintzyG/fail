@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MintzyG/fail" // assuming the module name is 'fail' or replaced by go.mod context
+	"github.com/MintzyG/fail/v2" // assuming the module name is 'fail' or replaced by go.mod context
 )
 
 // Helper to handle panics in tests

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/MintzyG/fail"
+	"github.com/MintzyG/fail/v2"
 )
 
 var (

@@ -3,7 +3,7 @@ package fail_test
 import (
 	"testing"
 
-	"github.com/MintzyG/fail"
+	"github.com/MintzyG/fail/v2"
 )
 
 type MockTranslator struct {

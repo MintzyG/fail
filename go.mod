@@ -1,4 +1,4 @@
-module github.com/MintzyG/fail
+module github.com/MintzyG/fail/v2
 
 go 1.24.0
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/MintzyG/fail"
+	"github.com/MintzyG/fail/v2"
 )
 
 func TestChain_Flow(t *testing.T) {

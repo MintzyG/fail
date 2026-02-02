@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/MintzyG/fail"
-
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
