@@ -101,6 +101,7 @@ func (e *Error) GetRendered() string {
 
 	args := e.effectiveArgs()
 	if len(args) == 0 {
+		_ = e.AddMeta("fail.render_warning", "template has placeholders but no args provided")
 		return template
 	}
 
@@ -172,6 +173,13 @@ func (e *Error) effectiveArgs() []any {
 }
 
 func safeSprintf(e *Error, format string, args ...any) (result string) {
+	expectedArgs := strings.Count(format, "%") - strings.Count(format, "%%")*2
+	if len(args) != expectedArgs {
+		_ = e.AddMeta("fail.render_error",
+			fmt.Sprintf("arg mismatch: expected %d, got %d", expectedArgs, len(args)))
+		return format
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			_ = e.AddMeta("fail.render_error", fmt.Sprintf("panic during sprintf: %v", r))

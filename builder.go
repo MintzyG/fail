@@ -1,7 +1,6 @@
 package fail
 
 import (
-	"context"
 	"fmt"
 )
 
@@ -28,6 +27,18 @@ func FromWithMsg(err error, message string) *Error {
 }
 
 // Builder methods for Error - these all return *Error for easy chaining
+
+// Clone lets you safely clone a fail.Error
+func (e *Error) Clone() *Error {
+	clone := *e
+	if e.Meta != nil {
+		clone.Meta = make(map[string]any, len(e.Meta))
+		for k, v := range e.Meta {
+			clone.Meta[k] = v
+		}
+	}
+	return &clone
+}
 
 // System marks this error as a system error
 func (e *Error) System() *Error {
@@ -166,11 +177,10 @@ func (e *Error) Traces(trace ...string) *Error {
 	if e.checkStatic("Traces") {
 		return e
 	}
-	var err *Error
 	for _, t := range trace {
-		err = e.addToSliceMeta("traces", t)
+		_ = e.addToSliceMeta("debug", t)
 	}
-	return err
+	return e
 }
 
 // Debug adds debug information to metadata
@@ -186,17 +196,21 @@ func (e *Error) Debugs(debug ...string) *Error {
 	if e.checkStatic("Debugs") {
 		return e
 	}
-	var err *Error
 	for _, t := range debug {
-		err = e.addToSliceMeta("debug", t)
+		_ = e.addToSliceMeta("debug", t)
 	}
-	return err
+	return e
 }
 
 // ValidationError represents a field validation error
 type ValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
+}
+
+// NewValidationError is a helper for initializing a validation error
+func NewValidationError(field, msg string) ValidationError {
+	return ValidationError{Field: field, Message: msg}
 }
 
 // Validation adds a validation error to metadata
@@ -213,7 +227,12 @@ func (e *Error) Validation(field, message string) *Error {
 		validations = make([]ValidationError, 0, 1)
 	}
 
-	validationList := validations.([]ValidationError)
+	validationList, ok := validations.([]ValidationError)
+	if !ok {
+		validations = make([]ValidationError, 0, 1)
+		validationList = validations.([]ValidationError)
+	}
+
 	validationList = append(validationList, ValidationError{
 		Field:   field,
 		Message: message,
@@ -238,137 +257,15 @@ func (e *Error) Validations(errs []ValidationError) *Error {
 		return e
 	}
 
-	validationList := validations.([]ValidationError)
+	validationList, ok := validations.([]ValidationError)
+	if !ok {
+		validations = make([]ValidationError, 0, 1)
+		validationList = validations.([]ValidationError)
+	}
+
 	validationList = append(validationList, errs...)
 	e.Meta["validations"] = validationList
 	return e
-}
-
-// Log automatically logs the error using the configured logger
-func (e *Error) Log() *Error {
-	// Get registry first (with fallback)
-	reg := e.registry
-	if reg == nil {
-		reg = global
-	}
-
-	// Run hook regardless of logger config
-	reg.hooks.runLog(e, map[string]any{
-		"id":        e.ID.String(),
-		"domain":    e.ID.Domain(),
-		"level":     e.ID.Level(),
-		"message":   e.Message,
-		"is_system": e.IsSystem,
-		"source":    "log",
-	})
-
-	// Logging is separate concern
-	reg.mu.RLock()
-	logger := reg.logger
-	reg.mu.RUnlock()
-
-	if logger != nil {
-		logger.Log(e)
-	}
-
-	return e
-}
-
-func (e *Error) LogCtx(ctx context.Context) *Error {
-	// Get registry first (with fallback)
-	reg := e.registry
-	if reg == nil {
-		reg = global
-	}
-
-	// Run hook regardless of logger config
-	reg.hooks.runLog(e, map[string]any{
-		"id":        e.ID.String(),
-		"domain":    e.ID.Domain(),
-		"level":     e.ID.Level(),
-		"message":   e.Message,
-		"is_system": e.IsSystem,
-		"source":    "logCtx",
-	})
-
-	// Logging is separate concern
-	reg.mu.RLock()
-	logger := reg.logger
-	reg.mu.RUnlock()
-
-	if logger != nil {
-		logger.LogCtx(ctx, e)
-	}
-
-	return e
-}
-
-// Record automatically traces the error using the configured tracer
-func (e *Error) Record() *Error {
-	// Get registry first (with fallback)
-	reg := e.registry
-	if reg == nil {
-		reg = global
-	}
-
-	reg.hooks.runTrace(e, map[string]any{
-		"id":        e.ID.String(),
-		"domain":    e.ID.Domain(),
-		"level":     e.ID.Level(),
-		"message":   e.Message,
-		"is_system": e.IsSystem,
-		"source":    "record",
-	})
-
-	global.mu.RLock()
-	tracer := global.tracer
-	global.mu.RUnlock()
-
-	if tracer != nil {
-		_ = tracer.Trace("error.record", func() error {
-			return e
-		})
-	}
-
-	return e
-}
-
-func (e *Error) RecordCtx(ctx context.Context) *Error {
-	// Get registry first (with fallback)
-	reg := e.registry
-	if reg == nil {
-		reg = global
-	}
-
-	reg.hooks.runTrace(e, map[string]any{
-		"id":        e.ID.String(),
-		"domain":    e.ID.Domain(),
-		"level":     e.ID.Level(),
-		"message":   e.Message,
-		"is_system": e.IsSystem,
-		"source":    "recordCtx",
-	})
-
-	global.mu.RLock()
-	tracer := global.tracer
-	global.mu.RUnlock()
-
-	if tracer != nil {
-		_ = tracer.TraceCtx(ctx, "error.record", func(context.Context) error {
-			return e
-		})
-	}
-
-	return e
-}
-
-// LogAndRecord logs and traces the error
-func (e *Error) LogAndRecord() *Error {
-	return e.Log().Record()
-}
-
-func (e *Error) LogAndRecordCtx(ctx context.Context) *Error {
-	return e.LogCtx(ctx).RecordCtx(ctx)
 }
 
 // Helper to add items to slice metadata

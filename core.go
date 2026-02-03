@@ -50,6 +50,8 @@ func Form(id ErrorID, defaultMsg string, isSystem bool, meta map[string]any, def
 	return global.Form(id, defaultMsg, isSystem, meta, defaultArgs...)
 }
 
+// FIXME, like ID Form should only be called at package level, and should panic if called after or in main
+
 func (r *Registry) Form(id ErrorID, defaultMsg string, isSystem bool, meta map[string]any, defaultArgs ...any) *Error {
 	def := ErrorDefinition{
 		ID:             id,
@@ -86,6 +88,7 @@ func (r *Registry) Form(id ErrorID, defaultMsg string, isSystem bool, meta map[s
 // Error is the core error type that all domain errors implement
 type Error struct {
 	// Required fields
+	// FIXME ID should be private to not let users perform 'surgery on errors'
 	ID              ErrorID // Unique trusted identifier
 	Message         string  // User-facing message
 	InternalMessage string  // Internal/debug message (optional but recommended)
@@ -129,6 +132,31 @@ func (e *Error) Dump() map[string]any {
 	}
 }
 
+// AsFail ensures the error is a *fail.Error.
+// If err is already a *fail.Error, returns it as-is.
+// If err is a generic error, converts via From() (uses mappers).
+// If err is nil, returns nil.
+//
+// This is useful at boundaries where you have generic errors
+// but need *fail.Error for translation, hooks, or metadata access.
+//
+// Example:
+//
+//	resp, _ := fail.To(fail.AsFail(err), "http")
+func AsFail(err error) *Error {
+	if err == nil {
+		return nil
+	}
+
+	// Already a fail.Error? Return as-is
+	if fe, ok := As(err); ok {
+		return fe
+	}
+
+	// Convert via From() (uses mappers)
+	return From(err)
+}
+
 // checkStatic verifies if the error is static and handles mutation attempts.
 // It should only ever be called by builder methods.
 //
@@ -160,6 +188,8 @@ func (e *Error) checkStatic(builderName string) bool {
 		log.Printf("[fail] warning: %s() called on static error ID(%s)", builderName, e.ID)
 	}
 
+	// Silently fail, we are never allowed to mutate static errors on the global registry
+	// On an upcoming update custom user registries will have a toggle to allow static mutation EWWWW
 	return true
 }
 

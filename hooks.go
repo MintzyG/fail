@@ -2,6 +2,7 @@ package fail
 
 import (
 	"fmt"
+	"log"
 	"runtime"
 	"sync"
 )
@@ -175,95 +176,108 @@ func (h *Hooks) On(t HookType, fn any) {
 	}
 }
 
-// Execution methods (called internally)
+// executeHooks is a helper to safely execute user hook functions while preventing panics
+func executeHooks[T any](hooks []T, runner func(T)) {
+	for _, fn := range hooks {
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[fail] hook panicked: %v", r)
+				}
+			}()
+			runner(fn)
+		}()
+	}
+}
+
 func (h *Hooks) runCreate(err *Error, data map[string]any) {
 	h.mu.RLock()
 	hooks := h.onCreate
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
 		fn(err, data)
-	}
+	})
 }
 
 func (h *Hooks) runLog(err *Error, data map[string]any) {
 	h.mu.RLock()
 	hooks := h.onLog
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
 		fn(err, data)
-	}
+	})
 }
 
 func (h *Hooks) runTrace(err *Error, data map[string]any) {
 	h.mu.RLock()
 	hooks := h.onTrace
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
 		fn(err, data)
-	}
+	})
 }
 
 func (h *Hooks) runMap(err *Error, data map[string]any) {
 	h.mu.RLock()
 	hooks := h.OnMap
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
 		fn(err, data)
-	}
+	})
 }
 
 func (h *Hooks) runWrap(wrapper *Error, wrapped error) {
 	h.mu.RLock()
 	hooks := h.onWrap
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, error)) {
 		fn(wrapper, wrapped)
-	}
+	})
 }
 
 func (h *Hooks) runFromFail(original error) {
 	h.mu.RLock()
 	hooks := h.onFromFail
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(error)) {
 		fn(original)
-	}
+	})
 }
 
 func (h *Hooks) runFromSuccess(original error, converted *Error) {
 	h.mu.RLock()
 	hooks := h.onFromSuccess
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(error, *Error)) {
 		fn(original, converted)
-	}
+	})
 }
 
 func (h *Hooks) runForm(id ErrorID, template *Error) {
 	h.mu.RLock()
 	hooks := h.onForm
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(ErrorID, *Error)) {
 		fn(id, template)
-	}
+	})
 }
 
 func (h *Hooks) runTranslate(err *Error, data map[string]any) {
 	h.mu.RLock()
 	hooks := h.onTranslate
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
 		fn(err, data)
-	}
+	})
 }
 
 func (h *Hooks) runMatch(err *Error, data map[string]any) {
 	h.mu.RLock()
 	hooks := h.onMatch
 	h.mu.RUnlock()
-	for _, fn := range hooks {
+	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
 		fn(err, data)
-	}
+	})
 }
 
 // IDE-friendly convenience wrappers

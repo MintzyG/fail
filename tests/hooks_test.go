@@ -63,3 +63,27 @@ func TestHooks_MapFrom(t *testing.T) {
 		t.Error("OnFrom hook failed")
 	}
 }
+
+func TestHooks_PanicRecovery(t *testing.T) {
+	panicked := false
+	afterPanic := false
+
+	fail.OnCreate(func(e *fail.Error, data map[string]any) {
+		panicked = true
+		panic("hook boom")
+	})
+
+	fail.OnCreate(func(e *fail.Error, data map[string]any) {
+		afterPanic = true
+	})
+
+	// Triggering hooks
+	_ = fail.New(HookID)
+
+	if !panicked {
+		t.Error("First hook was not called")
+	}
+	if !afterPanic {
+		t.Error("Second hook was not called after first hook panicked")
+	}
+}

@@ -115,10 +115,14 @@ type mockTrace struct {
 	called bool
 }
 
-func (m *mockTrace) Trace(_ string, fn func() error) error { m.called = true; return fn() }
-func (m *mockTrace) TraceCtx(ctx context.Context, _ string, fn func(context.Context) error) error {
+func (m *mockTrace) Record(err *fail.Error) *fail.Error {
 	m.called = true
-	return fn(ctx)
+	return err
+}
+
+func (m *mockTrace) RecordCtx(ctx context.Context, err *fail.Error) *fail.Error {
+	m.called = true
+	return err
 }
 
 func TestBuilder_Observability(t *testing.T) {
