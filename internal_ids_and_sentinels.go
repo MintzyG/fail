@@ -14,9 +14,9 @@ var (
 	NoMapperRegistered          = internalID(0, 9, false, "FailNoMapperRegistered")
 	TranslatorAlreadyRegistered = internalID(0, 10, false, "FailTranslatorAlreadyRegistered")
 	RuntimeIDInvalid            = internalID(9, 11, false, "FailRuntimeIDInvalid")
-	UnregisteredIDError         = internalID(9, 12, false, "FailUnregisteredIDError")
+	UnregisteredIDError         = internalID(9, 12, false, "FailIDNotRegisteredError")
 	RegisterManyError           = internalID(9, 13, false, "FailRegisterManyError")
-	RegistryAlreadyRegistered   = internalID(9, 11, false, "FailRegistryAlreadyRegistered")
+	RegistryAlreadyRegistered   = internalID(9, 14, false, "FailRegistryAlreadyRegistered")
 
 	TranslatorNil       = internalID(0, 0, true, "FailTranslatorNil")
 	TranslatorNameEmpty = internalID(0, 1, true, "FailTranslatorNameEmpty")

@@ -153,44 +153,6 @@ func (e *Error) MergeMeta(data map[string]any) *Error {
 	return e
 }
 
-// AddLocalization adds a translation for this error's ID to its registry
-// If localization already exists for this locale+ID, does nothing (idempotent)
-// Returns the original error unmodified for chaining
-func (e *Error) AddLocalization(locale string, msg string) *Error {
-	reg := e.registry
-	if reg == nil {
-		reg = global
-	}
-
-	reg.mu.Lock()
-	defer reg.mu.Unlock()
-
-	if reg.localization.data == nil {
-		reg.localization.data = make(map[string]map[string]string)
-	}
-
-	if _, exists := reg.localization.data[locale]; !exists {
-		reg.localization.data[locale] = make(map[string]string)
-	}
-
-	// Skip if already exists (first registration wins)
-	if _, exists := reg.localization.data[locale][e.ID.String()]; exists {
-		return e
-	}
-
-	reg.localization.data[locale][e.ID.String()] = msg
-
-	return e
-}
-
-// AddLocalizations adds multiple translations at once
-func (e *Error) AddLocalizations(msgs map[string]string) *Error {
-	for locale, msg := range msgs {
-		_ = e.AddLocalization(locale, msg)
-	}
-	return e
-}
-
 // Trace adds trace information to metadata
 func (e *Error) Trace(trace string) *Error {
 	if e.checkStatic("Trace") {

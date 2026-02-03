@@ -3,56 +3,45 @@ package fail
 import (
 	"fmt"
 	"strings"
-	"sync"
 )
 
-// TranslationRegistry holds all translations
-type TranslationRegistry struct {
-	mu   sync.RWMutex
-	data map[string]map[string]string // locale -> id.String() -> template
+type Localizer interface {
+	// Localize returns the localized template for the given error ID and locale
+	// Returns empty string if no translation exists
+	Localize(id ErrorID, locale string) string
+
+	// RegisterLocalization adds a single translation (for AddLocalization)
+	RegisterLocalization(id ErrorID, locale string, template string)
+
+	// RegisterLocalizations adds multiple translations for a locale (for bulk operations)
+	RegisterLocalizations(locale string, translations map[ErrorID]string)
 }
 
-// RegisterTranslations adds translations for a locale on the global registry
-func RegisterTranslations(locale string, msgs map[ErrorID]string) {
-	global.mu.Lock()
-	defer global.mu.Unlock()
-
-	if global.localization.data == nil {
-		global.localization.data = make(map[string]map[string]string)
-	}
-
-	if _, exists := global.localization.data[locale]; !exists {
-		global.localization.data[locale] = make(map[string]string)
-	}
-
-	for id, msg := range msgs {
-		global.localization.data[locale][id.String()] = msg
-	}
+// RegisterLocalizations adds translations for a locale on the global registry
+func RegisterLocalizations(locale string, msgs map[ErrorID]string) {
+	global.RegisterLocalizations(locale, msgs)
 }
 
-// RegisterTranslations adds translations for a locale in a specific registry
-func (r *Registry) RegisterTranslations(locale string, msgs map[ErrorID]string) {
+// RegisterLocalizations adds translations for a locale in a specific registry
+func (r *Registry) RegisterLocalizations(locale string, msgs map[ErrorID]string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if r.localization.data == nil {
-		r.localization.data = make(map[string]map[string]string)
-	}
-
-	if _, exists := r.localization.data[locale]; !exists {
-		r.localization.data[locale] = make(map[string]string)
-	}
-
-	for id, msg := range msgs {
-		r.localization.data[locale][id.String()] = msg
+	if r.localization != nil {
+		r.localization.RegisterLocalizations(locale, msgs)
+	} else {
+		for id, msg := range msgs {
+			if r.pendingLocalizations[id] == nil {
+				r.pendingLocalizations[id] = make(map[string]string)
+			}
+			r.pendingLocalizations[id][locale] = msg
+		}
 	}
 }
 
 // SetDefaultLocale sets the fallback locale for the global registry
 func SetDefaultLocale(locale string) {
-	global.mu.Lock()
-	defer global.mu.Unlock()
-	global.defaultLocale = locale
+	global.SetDefaultLocale(locale)
 }
 
 // SetDefaultLocale sets the fallback locale for the specific registry
@@ -139,15 +128,22 @@ func (e *Error) resolveLocale() string {
 }
 
 func resolveTemplate(e *Error, locale string) string {
-	// Try requested locale first
-	e.registry.localization.mu.RLock()
-	if trMap, ok := e.registry.localization.data[locale]; ok {
-		if msg, ok := trMap[e.ID.String()]; ok {
-			e.registry.localization.mu.RUnlock()
-			return msg
-		}
+	reg := e.registry
+	if reg == nil {
+		reg = global
 	}
-	e.registry.localization.mu.RUnlock()
+
+	reg.mu.RLock()
+	loc := reg.localization
+	reg.mu.RUnlock()
+
+	if loc == nil {
+		return e.Message
+	}
+
+	if msg := loc.Localize(e.ID, locale); msg != "" {
+		return msg
+	}
 
 	// Fallback to error's default message
 	return e.Message
@@ -184,4 +180,41 @@ func safeSprintf(e *Error, format string, args ...any) (result string) {
 	}()
 
 	return fmt.Sprintf(format, args...)
+}
+
+// AddLocalization adds a translation for this error's ID to its registry
+// If localization already exists for this locale+ID, does nothing (idempotent)
+// Returns the original error unmodified for chaining
+func (e *Error) AddLocalization(locale string, msg string) *Error {
+	reg := e.registry
+	if reg == nil {
+		reg = global
+	}
+
+	reg.mu.RLock()
+	localizer := reg.localization
+	reg.mu.RUnlock()
+
+	if localizer != nil {
+		// Skip if already exists (first registration wins)
+		if existing := localizer.Localize(e.ID, locale); existing != "" {
+			return e
+		}
+		localizer.RegisterLocalization(e.ID, locale, msg)
+	} else {
+		if reg.pendingLocalizations[e.ID] == nil {
+			reg.pendingLocalizations[e.ID] = make(map[string]string)
+		}
+		reg.pendingLocalizations[e.ID][locale] = msg
+	}
+
+	return e
+}
+
+// AddLocalizations adds multiple translations at once
+func (e *Error) AddLocalizations(msgs map[string]string) *Error {
+	for locale, msg := range msgs {
+		_ = e.AddLocalization(locale, msg)
+	}
+	return e
 }

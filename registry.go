@@ -15,9 +15,10 @@ type Registry struct {
 	translators    map[string]Translator
 
 	defaultLocale string
-	localization  TranslationRegistry
+	localization  Localizer
 
-	// Hooks for automatic behavior
+	pendingLocalizations map[ErrorID]map[string]string
+
 	hooks Hooks
 
 	tracer Tracer
@@ -32,11 +33,12 @@ var allowRuntimePanics bool
 
 // Global registry - users can also create their own
 var global = &Registry{
-	name:           "global",
-	errors:         make(map[string]*Error),
-	genericMappers: NewMapperList(),
-	translators:    make(map[string]Translator),
-	hooks:          Hooks{},
+	name:                 "global",
+	errors:               make(map[string]*Error),
+	genericMappers:       NewMapperList(),
+	translators:          make(map[string]Translator),
+	pendingLocalizations: make(map[ErrorID]map[string]string),
+	hooks:                Hooks{},
 }
 
 var (
@@ -65,12 +67,34 @@ func NewRegistry(name string) (*Registry, error) {
 	userRegistries[name] = true
 
 	return &Registry{
-		name:           name,
-		errors:         make(map[string]*Error),
-		genericMappers: NewMapperList(),
-		translators:    make(map[string]Translator),
-		hooks:          Hooks{},
+		name:                 name,
+		errors:               make(map[string]*Error),
+		genericMappers:       NewMapperList(),
+		translators:          make(map[string]Translator),
+		pendingLocalizations: make(map[ErrorID]map[string]string),
+		hooks:                Hooks{},
 	}, nil
+}
+
+// SetLocalizer sets the global localization provider
+func SetLocalizer(l Localizer) {
+	global.SetLocalizer(l)
+}
+
+// SetLocalizer sets the localization provider for this registry
+func (r *Registry) SetLocalizer(l Localizer) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.localization = l
+
+	if len(r.pendingLocalizations) > 0 {
+		for id, locales := range r.pendingLocalizations {
+			for locale, msg := range locales {
+				l.RegisterLocalization(id, locale, msg)
+			}
+		}
+		r.pendingLocalizations = make(map[ErrorID]map[string]string)
+	}
 }
 
 // Register adds an error definition to this registry

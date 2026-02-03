@@ -74,10 +74,8 @@ func (t *MyTracer) TraceCtx(ctx context.Context, op string, fn func(context.Cont
 
 type MyMapper struct{}
 
-func (m *MyMapper) Name() string                            { return "MyMapper" }
-func (m *MyMapper) Priority() int                           { return 100 }
-func (m *MyMapper) Map(_ error) (error, bool)               { return nil, false }
-func (m *MyMapper) MapFromFail(_ *fail.Error) (error, bool) { return nil, false }
+func (m *MyMapper) Name() string  { return "MyMapper" }
+func (m *MyMapper) Priority() int { return 100 }
 func (m *MyMapper) Map(err error) (*fail.Error, bool) {
 	if err.Error() == "sql: connection refused" {
 		// Use sentinel for connection failures as they are usually static
@@ -217,7 +215,7 @@ func main() {
 	fmt.Println("\n--- 1. Basic Error & Translation ---")
 	err := simulateAuth("expired")
 	if err != nil {
-		resp, _ := fail.TranslateAs[HTTPResponse](fail.From(err), "http")
+		resp, _ := fail.ToAs[HTTPResponse](fail.From(err), "http")
 		fmt.Printf("HTTP Response: %+v\n", resp)
 	}
 

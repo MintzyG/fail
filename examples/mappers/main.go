@@ -24,26 +24,6 @@ type PGXMapper struct{}
 func (m *PGXMapper) Name() string  { return "pgx" }
 func (m *PGXMapper) Priority() int { return 100 }
 
-func (m *PGXMapper) Map(err error) (error, bool) {
-	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) {
-		return nil, false
-	}
-
-	switch pgErr.Code {
-	case "23505":
-		return ErrSQLUniqueViolation, true
-	case "23503":
-		return ErrSQLForeignKey, true
-	default:
-		return ErrSQLUnknownError, true
-	}
-}
-
-func (m *PGXMapper) MapFromFail(fe *fail.Error) (error, bool) {
-	return errors.New(fe.Message), true
-}
-
 func (m *PGXMapper) Map(err error) (*fail.Error, bool) {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {

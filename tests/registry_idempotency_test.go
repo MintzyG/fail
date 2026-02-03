@@ -9,7 +9,7 @@ import (
 var IdemID = fail.ID(0, "IDEM", 0, true, "IdemTestError")
 
 func TestRegistry_Idempotency(t *testing.T) {
-	reg := fail.NewRegistry("test_registry")
+	reg := fail.MustNewRegistry("test_registry_idem")
 
 	// First registration
 	reg.Register(&fail.Error{
@@ -30,7 +30,7 @@ func TestRegistry_Idempotency(t *testing.T) {
 }
 
 func TestForm_Idempotency(t *testing.T) {
-	reg := fail.NewRegistry("test_registry")
+	reg := fail.MustNewRegistry("test_registry_form_idem")
 
 	// First Form call
 	_ = reg.Form(IdemID, "form first", false, nil)

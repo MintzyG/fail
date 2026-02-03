@@ -30,29 +30,29 @@ func TestTranslators(t *testing.T) {
 	err := fail.New(CoreTestID)
 
 	// Success
-	res, tErr := fail.Translate(err, "mock")
+	res, tErr := fail.To(err, "mock")
 	if tErr != nil {
-		t.Errorf("Translate failed: %v", tErr)
+		t.Errorf("Localize failed: %v", tErr)
 	}
 	if res != "translated" {
 		t.Error("Translation content wrong")
 	}
 
 	// TranslateAs
-	str, tErrAs := fail.TranslateAs[string](err, "mock")
+	str, tErrAs := fail.ToAs[string](err, "mock")
 	if tErrAs != nil || str != "translated" {
 		t.Error("TranslateAs failed")
 	}
 
 	// Unsupported
 	tr.Supported = false
-	_, tErr2 := fail.Translate(err, "mock")
+	_, tErr2 := fail.To(err, "mock")
 	if tErr2 == nil {
 		t.Error("Expected error for unsupported translation")
 	}
 
 	// Not Found
-	_, tErr3 := fail.Translate(err, "unknown_translator")
+	_, tErr3 := fail.To(err, "unknown_translator")
 	if tErr3 == nil {
 		t.Error("Expected error for unknown translator")
 	}

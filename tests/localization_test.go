@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/MintzyG/fail/v3"
+	"github.com/MintzyG/fail/v3/plugins/localization"
 )
 
 var (
@@ -16,22 +17,48 @@ var (
 
 func TestLocalization_RegisterAndLocalize(t *testing.T) {
 	// Create a fresh registry to avoid polluting global state and to test initialization
-	reg := fail.NewRegistry("localization_test")
-
+	reg := fail.MustNewRegistry("localization_test")
 	_ = reg.Form(LocTestID, "default message", false, nil)
 
-	t.Run("RegisterTranslations should not panic", func(t *testing.T) {
+	t.Run("RegisterLocalizations localization plugin not enabled", func(t *testing.T) {
 		msgs := map[fail.ErrorID]string{
 			LocTestID: "mensaje traducido",
 		}
-		reg.RegisterTranslations("es-ES", msgs)
+		reg.RegisterLocalizations("es-ES", msgs)
+
+		// Verify that translations are NOT applied yet (because localizer is not set)
+		err := reg.New(LocTestID)
+		err.Locale = "es-ES"
+		_ = err.Localize()
+		if err.Message != "default message" {
+			t.Errorf("Expected 'default message' while localizer is unset, got '%s'", err.Message)
+		}
+	})
+
+	reg.SetLocalizer(localization.New())
+
+	t.Run("Buffered translations should be applied", func(t *testing.T) {
+		// We use a fresh error instance
+		err := reg.New(LocTestID)
+		err.Locale = "es-ES"
+		_ = err.Localize()
+		if err.Message != "mensaje traducido" {
+			t.Errorf("Expected buffered translation 'mensaje traducido', got '%s'", err.Message)
+		}
+	})
+
+	t.Run("RegisterLocalizations should not panic", func(t *testing.T) {
+		msgs := map[fail.ErrorID]string{
+			LocTestID: "mensaje traducido",
+		}
+		reg.RegisterLocalizations("es-ES", msgs)
 	})
 
 	t.Run("Localize should return translated message", func(t *testing.T) {
 		msgs := map[fail.ErrorID]string{
 			LocTestID: "mensaje traducido",
 		}
-		reg.RegisterTranslations("es-ES", msgs)
+		reg.RegisterLocalizations("es-ES", msgs)
 
 		err := reg.New(LocTestID)
 		err.Locale = "es-ES"
@@ -50,7 +77,7 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 		msgs := map[fail.ErrorID]string{
 			LocTestID: "message traduit",
 		}
-		reg.RegisterTranslations("fr-FR", msgs)
+		reg.RegisterLocalizations("fr-FR", msgs)
 		reg.SetDefaultLocale("fr-FR")
 
 		err := reg.New(LocTestID)
@@ -74,7 +101,8 @@ func TestLocalization_RegisterAndLocalize(t *testing.T) {
 }
 
 func TestRendering(t *testing.T) {
-	reg := fail.NewRegistry("localization_test")
+	reg := fail.MustNewRegistry("localization_test_render")
+	reg.SetLocalizer(localization.New())
 	_ = reg.Form(LocTemplateID, "Hello %s", false, nil)
 	_ = reg.Form(LocArgID, "Value: %d", false, nil, 42) // Default arg 42
 
@@ -90,7 +118,7 @@ func TestRendering(t *testing.T) {
 	})
 
 	t.Run("Render should use localized template", func(t *testing.T) {
-		reg.RegisterTranslations("es-ES", map[fail.ErrorID]string{
+		reg.RegisterLocalizations("es-ES", map[fail.ErrorID]string{
 			LocTemplateID: "Hola %s",
 		})
 
@@ -168,6 +196,7 @@ var LocBuilderID = fail.ID(0, "LOCBLD", 0, true, "LocBldTestError")
 // TestAddLocalization_Chaining verifies that AddLocalization and AddLocalizations
 // can be chained on Form and correctly register translations.
 func TestAddLocalization_Chaining(t *testing.T) {
+	fail.SetLocalizer(localization.New())
 	// Register error with translations using chaining
 	// This simulates "at var level" usage
 	_ = fail.Form(LocBuilderID, "English default", false, nil).

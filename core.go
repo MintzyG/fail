@@ -152,11 +152,11 @@ func (e *Error) checkStatic(builderName string) bool {
 	}
 
 	// Only panic if explicitly enabled
-	if e.registry.panicOnStaticMutations && allowRuntimePanics {
+	if reg.panicOnStaticMutations && allowRuntimePanics {
 		panic(fmt.Sprintf("[fail] error: builder %s() called on static error with ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String()))
 	}
 
-	if e.registry.allowInternalLogs {
+	if reg.allowInternalLogs {
 		log.Printf("[fail] warning: %s() called on static error ID(%s)", builderName, e.ID)
 	}
 

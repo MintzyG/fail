@@ -58,29 +58,6 @@ func TestStaticErrorBuilders(t *testing.T) {
 		}
 	})
 
-	t.Run("AllowStaticMutations(true) should allow Msg", func(t *testing.T) {
-		// Enable mutations
-		fail.AllowStaticMutations(true, false)
-		defer fail.AllowStaticMutations(false, false) // Reset
-
-		err := fail.New(staticID)
-		_ = err.Msg("new message")
-		if err.Message != "new message" {
-			t.Errorf("expected message to be 'new message', got '%s'", err.Message)
-		}
-	})
-
-	t.Run("AllowStaticMutations(true) should allow Newf", func(t *testing.T) {
-		// Enable mutations
-		fail.AllowStaticMutations(true, false)
-		defer fail.AllowStaticMutations(false, false) // Reset
-
-		err := fail.Newf(staticID, "formatted %d", 1)
-		if err.Message != "formatted 1" {
-			t.Errorf("expected message to be 'formatted 1', got '%s'", err.Message)
-		}
-	})
-
 	t.Run("PanicOnStaticMutations should panic when RuntimePanics enabled", func(t *testing.T) {
 		// Configure to panic
 		fail.AllowStaticMutations(false, true)

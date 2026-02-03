@@ -35,7 +35,7 @@ func HTTPResponseTranslator() *HTTPTranslator {
 
 func (h *HTTPTranslator) Name() string { return "http" }
 func (h *HTTPTranslator) Supports(err *fail.Error) error {
-	if err != nil && err.IsTrusted() {
+	if err != nil && err.IsRegistered() {
 		return nil
 	}
 	return errors.New("unsupported")
@@ -84,7 +84,7 @@ func main() {
 		Msg("validation failed").
 		Validation("email", "invalid format")
 
-	resp, _ := fail.Translate(err, "http")
+	resp, _ := fail.To(err, "http")
 
 	b, _ := json.MarshalIndent(resp, "", "  ")
 	fmt.Printf("HTTP Response:\n%s\n", string(b))
