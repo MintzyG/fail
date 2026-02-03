@@ -47,8 +47,8 @@ func TestID_ValidRegistration(t *testing.T) {
 	if !id.IsStatic() {
 		t.Errorf("Expected IsStatic true")
 	}
-	if !id.IsTrusted() {
-		t.Errorf("Expected IsTrusted true")
+	if !id.IsRegistered() {
+		t.Errorf("Expected IsRegistered true")
 	}
 }
 
@@ -136,7 +136,7 @@ func TestID_RuntimeBlocking(t *testing.T) {
 		t.Errorf("Expected invalid ID name, got %s", id.Name())
 	}
 	// It's an internal library-generated ID, so it is trusted.
-	if !id.IsTrusted() {
+	if !id.IsRegistered() {
 		t.Error("Invalid ID sentinel should be trusted")
 	}
 }

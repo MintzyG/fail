@@ -1,8 +1,6 @@
 package fail
 
 import (
-	"errors"
-	"fmt"
 	"log"
 	"sync"
 )
@@ -41,56 +39,100 @@ var global = &Registry{
 	hooks:          Hooks{},
 }
 
+var (
+	userRegistries   = map[string]bool{}
+	userRegistriesMu sync.RWMutex
+)
+
+// MustNewRegistry creates a new isolated registry (for testing or multi-app scenarios)
+// Panics if a registry of the same name is already registered
+func MustNewRegistry(name string) *Registry {
+	if registry, err := NewRegistry(name); err != nil {
+		panic(err)
+	} else {
+		return registry
+	}
+}
+
 // NewRegistry creates a new isolated registry (for testing or multi-app scenarios)
-func NewRegistry(name string) *Registry {
+func NewRegistry(name string) (*Registry, error) {
+	userRegistriesMu.Lock()
+	defer userRegistriesMu.Unlock()
+
+	if userRegistries[name] {
+		return nil, New(RegistryAlreadyRegistered).WithArgs(name).Render()
+	}
+	userRegistries[name] = true
+
 	return &Registry{
 		name:           name,
 		errors:         make(map[string]*Error),
 		genericMappers: NewMapperList(),
 		translators:    make(map[string]Translator),
 		hooks:          Hooks{},
-	}
+	}, nil
 }
 
 // Register adds an error definition to this registry
-func (r *Registry) Register(err *Error) {
+func (r *Registry) Register(err *Error) *Error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	// Verify the ErrorID is trusted
-	if !err.ID.IsTrusted() {
-		panic(fmt.Sprintf("cannot register untrusted error ID: %s (must use fail.ID() to create)", err.ID))
+	if !err.ID.IsRegistered() {
+		if r.allowInternalLogs {
+			log.Printf("cannot register error with unregistered ID: %s (must use fail.ID() to create)\n", err.ID)
+		}
+		return New(UnregisteredIDError).WithArgs(err.ID).Render()
 	}
 
 	// First register wins (idempotent)
 	if _, exists := r.errors[err.ID.String()]; exists {
-		return
+		return nil
 	}
 
 	r.errors[err.ID.String()] = err
+	return nil
 }
 
 // RegisterMany registers multiple error definitions at once
-func RegisterMany(defs ...*ErrorDefinition) {
-	global.RegisterMany(defs...)
+func RegisterMany(defs ...*ErrorDefinition) *Error {
+	return global.RegisterMany(defs...)
 }
 
-func (r *Registry) RegisterMany(defs ...*ErrorDefinition) {
+func (r *Registry) RegisterMany(defs ...*ErrorDefinition) *Error {
+	failures := make(map[string]*Error, len(defs))
+
 	for _, def := range defs {
-		r.Register(&Error{
+		if err := r.Register(&Error{
 			ID:       def.ID,
 			Message:  def.DefaultMessage,
 			IsSystem: def.IsSystem,
 			Meta:     def.Meta,
 			isStatic: def.ID.IsStatic(),
-		})
+		}); err != nil {
+			failures[err.ID.String()] = err
+		}
 	}
+
+	// Only return error if there were failures
+	if len(failures) > 0 {
+		return New(RegisterManyError).
+			AddMeta("failures", failures).
+			AddMeta("failure_count", len(failures)).
+			AddMeta("total_count", len(defs))
+	}
+
+	return nil // All succeeded
 }
 
 func (r *Registry) New(id ErrorID) *Error {
 	// Verify the ErrorID is trusted
-	if !id.IsTrusted() {
-		panic(fmt.Sprintf("cannot create error with untrusted ID: %s (must use fail.ID() to create)", id))
+	if !id.IsRegistered() {
+		if r.allowInternalLogs {
+			log.Printf("cannot New() an error with unregistered ID: %s (must use fail.ID() to register the id first)\n", id)
+		}
+		return New(UnregisteredIDError).WithArgs(id).Render()
 	}
 
 	r.mu.RLock()
@@ -102,12 +144,12 @@ func (r *Registry) New(id ErrorID) *Error {
 	}
 
 	err := &Error{
-		ID:       def.ID,
-		Message:  def.Message,
-		IsSystem: def.IsSystem,
-		trusted:  true,
-		registry: r,
-		isStatic: id.IsStatic(),
+		ID:           def.ID,
+		Message:      def.Message,
+		IsSystem:     def.IsSystem,
+		isRegistered: true,
+		registry:     r,
+		isStatic:     id.IsStatic(),
 	}
 
 	// Copy default meta if present
@@ -122,62 +164,4 @@ func (r *Registry) New(id ErrorID) *Error {
 	r.hooks.runCreate(err, map[string]any{"create": def.ID.String()})
 
 	return err
-}
-
-// FIXME Implement and enforce registry names
-
-func (r *Registry) From(err error) *Error {
-	if err == nil {
-		return nil
-	}
-
-	if r.allowInternalLogs {
-		log.Printf("[fail] From() called with: %T, msg=%q", err, err.Error())
-	}
-
-	var e *Error
-	if errors.As(err, &e) {
-		if e.createdByFrom {
-			if r.allowInternalLogs {
-				log.Printf("[fail] From() called on already-processed error: ID(%s)", e.ID.String())
-			}
-			return e
-		} else {
-			if r.allowInternalLogs {
-				log.Printf("[fail] From() called on already defined fail.Error with ID(%s), consider removing redundant From() call", e.ID.String())
-			}
-			r.hooks.runFromSuccess(err, e)
-			return e
-		}
-	}
-
-	r.mu.RLock()
-	mappers := r.genericMappers
-	allowLogs := r.allowInternalLogs
-	r.mu.RUnlock()
-
-	if mappers != nil {
-		if fe, ok := mappers.MapToFail(err); ok {
-			fe.createdByFrom = true
-			fe.registry = r
-			fe.trusted = true
-			fe.isStatic = fe.ID.IsStatic()
-			r.hooks.runFromSuccess(err, fe)
-			return fe
-		}
-		if allowLogs {
-			log.Printf("[fail] No mapper matched error: %T, msg=%q", err, err.Error())
-		}
-	} else {
-		if allowLogs {
-			log.Printf("[fail] No mappers registered")
-		}
-		result := New(NoMapperRegistered).With(err)
-		r.hooks.runFromFail(err)
-		return result
-	}
-
-	result := New(NotMatchedInAnyMapper).With(err)
-	r.hooks.runFromFail(err)
-	return result
 }

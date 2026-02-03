@@ -14,6 +14,12 @@ type Translator interface {
 	Translate(*Error) (any, error)
 }
 
+func MustRegisterTranslator(t Translator) {
+	if err := RegisterTranslator(t); err != nil {
+		panic(err)
+	}
+}
+
 // RegisterTranslator adds a translator for converting errors to other formats
 func RegisterTranslator(t Translator) error {
 	return global.RegisterTranslator(t)
@@ -40,24 +46,22 @@ func (r *Registry) RegisterTranslator(t Translator) error {
 	return nil
 }
 
-func MustRegisterTranslator(t Translator) {
-	if err := RegisterTranslator(t); err != nil {
-		panic(err)
-	}
+// To converts a fail.Error to an external format using the named translator
+// Only registered errors can be translated (safety guarantee)
+func To(err *Error, translatorName string) (any, error) {
+	return global.To(err, translatorName)
 }
 
-func Translate(err *Error, translatorName string) (any, error) {
-	return global.Translate(err, translatorName)
-}
-
-// Translate converts an error using the named translator
-func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr error) {
+// To converts a fail.Error to an external format using the named translator
+// Only registered errors can be translated (safety guarantee)
+func (r *Registry) To(err *Error, translatorName string) (zero any, retErr error) {
 	if err == nil {
 		return nil, nil
 	}
 
-	if !err.trusted {
-		return nil, New(TranslateUntrustedError).With(err)
+	// Safety check: only translate registered errors
+	if !err.IsRegistered() {
+		return nil, New(TranslateUnregisteredError).AddMeta("translator", translatorName).With(err)
 	}
 
 	r.mu.RLock()
@@ -65,11 +69,12 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 	r.mu.RUnlock()
 
 	if !exists {
-		return nil, New(TranslateNotFound).AddMeta("name", translatorName)
+		return nil, New(TranslatorNotFound).WithArgs(translatorName).Render()
 	}
 
+	// Translator's Supports() check
 	if spErr := translator.Supports(err); spErr != nil {
-		return nil, New(TranslateUnsupportedError).WithArgs(translatorName).With(err).Render()
+		return nil, New(TranslateUnsupportedError).WithArgs(translatorName).With(spErr).Render()
 	}
 
 	r.hooks.runTranslate(err, map[string]any{
@@ -78,23 +83,22 @@ func (r *Registry) Translate(err *Error, translatorName string) (out any, retErr
 
 	defer func() {
 		if rec := recover(); rec != nil {
-			retErr = New(TranslatePanic).With(err). // original error being translated
-								AddMeta("translator", translatorName).
-								AddMeta("panic", rec)
+			retErr = New(TranslatePanicked).
+				With(err).
+				WithArgs(translatorName).
+				AddMeta("panic", rec).
+				Render()
 		}
 	}()
 
 	return translator.Translate(err)
 }
 
-func TranslateAs[T any](err *Error, translatorName string) (T, error) {
-	return TranslateAsFrom[T](global, err, translatorName)
-}
-
-func TranslateAsFrom[T any](r *Registry, err *Error, translatorName string) (T, error) {
+// ToAs is the generic version for global registry
+func ToAs[T any](err *Error, translatorName string) (T, error) {
 	var zero T
 
-	out, trErr := r.Translate(err, translatorName)
+	out, trErr := global.To(err, translatorName)
 	if trErr != nil {
 		return zero, trErr
 	}
@@ -105,9 +109,28 @@ func TranslateAsFrom[T any](r *Registry, err *Error, translatorName string) (T, 
 
 	typed, ok := out.(T)
 	if !ok {
-		return zero, New(TranslateWrongType).
-			With(err).
-			AddMeta("translator", translatorName)
+		return zero, New(TranslateWrongType).WithArgs(translatorName, zero, out).Render()
+	}
+
+	return typed, nil
+}
+
+// ToAsFrom is the generic version for a specific registry
+func ToAsFrom[T any](r *Registry, err *Error, translatorName string) (T, error) {
+	var zero T
+
+	out, trErr := r.To(err, translatorName)
+	if trErr != nil {
+		return zero, trErr
+	}
+
+	if out == nil {
+		return zero, nil
+	}
+
+	typed, ok := out.(T)
+	if !ok {
+		return zero, New(TranslateWrongType).WithArgs(translatorName, zero, out).Render()
 	}
 
 	return typed, nil

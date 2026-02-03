@@ -37,6 +37,20 @@ func (g *ErrorGroup) Addf(id ErrorID, format string, args ...interface{}) *Error
 	return g.Add(err)
 }
 
+// Collect is the same as Add but without returning the error group
+func (g *ErrorGroup) Collect(err error) {
+	if err == nil {
+		return
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	e := From(err)
+	g.errors = append(g.errors, e)
+	return
+}
+
 // Len returns the number of errors collected (concurrency-safe)
 func (g *ErrorGroup) Len() int {
 	g.mu.RLock()

@@ -28,11 +28,6 @@ func Newf(id ErrorID, format string, args ...interface{}) *Error {
 	return err
 }
 
-// From ingests a generic error and transforms it to an Error
-func From(err error) *Error {
-	return global.From(err)
-}
-
 // Form creates, registers, and returns an error in one call
 // This is a convenience function for defining error sentinels
 //
@@ -104,7 +99,7 @@ type Error struct {
 	Meta map[string]any // Arbitrary metadata (traces, validation errors, etc.)
 
 	// Internal tracking
-	trusted       bool // Whether this error was registered in the hub and should be trusted
+	isRegistered  bool // Whether this error was registered in the hub
 	registry      *Registry
 	createdByFrom bool
 	isStatic      bool
@@ -130,7 +125,7 @@ func (e *Error) Dump() map[string]any {
 		"args":             e.Args,
 		"locale":           e.Locale,
 		"meta":             e.Meta,
-		"is_trusted":       e.trusted,
+		"is_registered":    e.isRegistered,
 	}
 }
 
@@ -156,18 +151,15 @@ func (e *Error) checkStatic(builderName string) bool {
 		reg = global
 	}
 
-	if reg.panicOnStaticMutations && allowRuntimePanics {
+	// Only panic if explicitly enabled
+	if e.registry.panicOnStaticMutations && allowRuntimePanics {
 		panic(fmt.Sprintf("[fail] error: builder %s() called on static error with ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String()))
-	} else if reg.allowInternalLogs {
-		log.Printf("[fail] warning: builder %s() called on static error with ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String())
 	}
 
-	if reg.allowStaticMutations {
-		if reg.allowInternalLogs {
-			log.Printf("[fail] warning: builder %s() is mutating error with ID(%s), modifications to static errors are discouraged\n", builderName, e.ID.String())
-		}
-		return false
+	if e.registry.allowInternalLogs {
+		log.Printf("[fail] warning: %s() called on static error ID(%s)", builderName, e.ID)
 	}
+
 	return true
 }
 

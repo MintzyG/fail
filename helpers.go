@@ -16,7 +16,7 @@ func Must(err error) {
 // MustNew creates an error and panics if it's not registered
 func MustNew(id ErrorID) *Error {
 	err := New(id)
-	if !err.trusted {
+	if !err.isRegistered {
 		panic(fmt.Sprintf("error ID %s not registered", id))
 	}
 	return err
@@ -56,17 +56,39 @@ func IsDomain(err error) bool {
 	return false
 }
 
-// IsTrusted checks if an error is trusted by the registry
-func (e *Error) IsTrusted() bool {
-	return e.trusted
-}
-
-// IsTrusted checks if a generic error is an Error and is trusted
-func IsTrusted(err error) bool {
+// IsStatic checks if an error is a static error
+func IsStatic(err error) bool {
 	if e, ok := As(err); ok {
-		return e.trusted
+		return e.isStatic
 	}
 	return false
+}
+
+// IsRegistered checks if an error was registered to a registry
+func (e *Error) IsRegistered() bool {
+	return e.isRegistered
+}
+
+// IsRegistered checks if a generic error is an Error and was registered to a registry
+func IsRegistered(err error) bool {
+	if e, ok := As(err); ok {
+		return e.isRegistered
+	}
+	return false
+}
+
+// FromRegistry checks if the Error is from the passed in Registry and return true or false accordingly
+func (e *Error) FromRegistry(r *Registry) bool {
+	return e.registry == r
+}
+
+// FromGlobalRegistry checks if the Error is from the global Registry and return true or false accordingly
+func (e *Error) FromGlobalRegistry() bool {
+	return e.registry == global
+}
+
+func (e *Error) GetRegistry() *Registry {
+	return e.registry
 }
 
 // GetID extracts the error ID from any error

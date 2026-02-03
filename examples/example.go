@@ -78,7 +78,7 @@ func (m *MyMapper) Name() string                            { return "MyMapper" 
 func (m *MyMapper) Priority() int                           { return 100 }
 func (m *MyMapper) Map(_ error) (error, bool)               { return nil, false }
 func (m *MyMapper) MapFromFail(_ *fail.Error) (error, bool) { return nil, false }
-func (m *MyMapper) MapToFail(err error) (*fail.Error, bool) {
+func (m *MyMapper) Map(err error) (*fail.Error, bool) {
 	if err.Error() == "sql: connection refused" {
 		// Use sentinel for connection failures as they are usually static
 		return ErrDBConnectionFailed.With(err), true

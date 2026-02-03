@@ -44,7 +44,7 @@ func (m *PGXMapper) MapFromFail(fe *fail.Error) (error, bool) {
 	return errors.New(fe.Message), true
 }
 
-func (m *PGXMapper) MapToFail(err error) (*fail.Error, bool) {
+func (m *PGXMapper) Map(err error) (*fail.Error, bool) {
 	var pgErr *pgconn.PgError
 	if !errors.As(err, &pgErr) {
 		return nil, false

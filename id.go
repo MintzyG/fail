@@ -19,12 +19,12 @@ const reservedDomain = "FAIL"
 // Format: LEVEL_DOMAIN_NUM_TYPE (e.g., "0_AUTH_0042_S")
 // Level indicates severity but does not affect uniqueness
 type ErrorID struct {
-	name     string
-	domain   string
-	level    int // Severity level
-	isStatic bool
-	number   int  // Explicitly assigned, stable across versions
-	trusted  bool // Internal flag - only IDs created by ID() are trusted
+	name         string
+	domain       string
+	level        int // Severity level
+	isStatic     bool
+	number       int  // Explicitly assigned, stable across versions
+	isRegistered bool // Internal flag - only IDs created by ID() have this as true
 }
 
 // String returns the formatted error ID (e.g., "0_AUTH_0042_S")
@@ -61,9 +61,9 @@ func (id ErrorID) IsStatic() bool {
 	return id.isStatic
 }
 
-// IsTrusted returns true if this ID was created through the proper ID() function
-func (id ErrorID) IsTrusted() bool {
-	return id.trusted
+// IsRegistered returns true if this ID was created through the proper ID() function
+func (id ErrorID) IsRegistered() bool {
+	return id.isRegistered
 }
 
 // OverrideAllowIDRuntimePanics sets global id registry override
@@ -318,12 +318,12 @@ func (r *IDRegistry) ID(level int, domain string, number int, static bool, name 
 	}
 
 	id := ErrorID{
-		name:     name,
-		domain:   domain,
-		level:    level,
-		isStatic: static,
-		number:   number,
-		trusted:  true,
+		name:         name,
+		domain:       domain,
+		level:        level,
+		isStatic:     static,
+		number:       number,
+		isRegistered: true,
 	}
 
 	newNode := numberNode{number: number, name: name, id: id.String()}
@@ -438,12 +438,12 @@ func (r *IDRegistry) internalID(level, number int, static bool, name string) Err
 	}
 
 	id := ErrorID{
-		name:     name,
-		domain:   domain,
-		level:    level,
-		isStatic: static,
-		number:   number,
-		trusted:  true,
+		name:         name,
+		domain:       domain,
+		level:        level,
+		isStatic:     static,
+		number:       number,
+		isRegistered: true,
 	}
 
 	newNode := numberNode{number: number, name: name, id: id.String()}

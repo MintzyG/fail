@@ -2,23 +2,22 @@ package fail
 
 import (
 	"container/list"
+	"errors"
+	"log"
 	"sync"
 )
 
 // Mapper converts errors in any direction: generic->fail, fail->generic, fail->fail, etc.
+//
+// IMPORTANT: Map must return errors created via fail.New() or fail.From(),
+// not hand-crafted *fail.Error structs. Hand-crafted errors will be unregistered and
+// may cause issues with translators and other components that require registered errors.
 type Mapper interface {
 	Name() string
 	Priority() int
 
-	// Map attempts to map the input error to some other error (generic or fail)
-	// Returns ok = true if the mapper handled the error, false otherwise
-	Map(error) (error, bool)
-
-	// MapToFail : Optional convenience for mapping from generic error to fail.Error type
-	MapToFail(err error) (*Error, bool)
-
-	// MapFromFail : Optional convenience for mapping from fail.Error to another error type
-	MapFromFail(*Error) (error, bool)
+	// Map : should map generic errors to fail.Error type
+	Map(err error) (*Error, bool)
 }
 
 // RegisterMapper adds a generic error mapper
@@ -66,53 +65,67 @@ func (ml *MapperList) Add(m Mapper) {
 	ml.mappers.PushBack(m)
 }
 
-// All returns all mappers as a slice
-func (ml *MapperList) All() []Mapper {
+// Map maps to *fail.Error
+func (ml *MapperList) Map(err error) (*Error, string, bool) {
 	ml.mu.RLock()
 	defer ml.mu.RUnlock()
 
-	out := make([]Mapper, 0, ml.mappers.Len())
-	for e := ml.mappers.Front(); e != nil; e = e.Next() {
-		out = append(out, e.Value.(Mapper))
-	}
-	return out
-}
-
-// MapError tries to map an error using mappers in priority order
-func (ml *MapperList) MapError(err error) (error, bool) {
-	ml.mu.RLock()
-	defer ml.mu.RUnlock()
-
-	for e := ml.mappers.Front(); e != nil; e = e.Next() {
-		if mapped, ok := e.Value.(Mapper).Map(err); ok {
-			return mapped, true
+	for mapper := ml.mappers.Front(); mapper != nil; mapper = mapper.Next() {
+		if fe, ok := mapper.Value.(Mapper).Map(err); ok {
+			return fe, mapper.Value.(Mapper).Name(), true
 		}
 	}
-	return nil, false
+	return nil, "", false
 }
 
-// MapToFail maps to *fail.Error
-func (ml *MapperList) MapToFail(err error) (*Error, bool) {
-	ml.mu.RLock()
-	defer ml.mu.RUnlock()
-
-	for e := ml.mappers.Front(); e != nil; e = e.Next() {
-		if fe, ok := e.Value.(Mapper).MapToFail(err); ok {
-			return fe, true
-		}
-	}
-	return nil, false
+// From ingests a generic error and maps it to an Error
+func From(err error) *Error {
+	return global.From(err)
 }
 
-// MapFromFail maps from *fail.Error
-func (ml *MapperList) MapFromFail(err *Error) (error, bool) {
-	ml.mu.RLock()
-	defer ml.mu.RUnlock()
-
-	for e := ml.mappers.Front(); e != nil; e = e.Next() {
-		if mapped, ok := e.Value.(Mapper).MapFromFail(err); ok {
-			return mapped, true
-		}
+// From ingests a generic error and maps it to an Error
+func (r *Registry) From(err error) *Error {
+	if err == nil {
+		return nil
 	}
-	return nil, false
+
+	var e *Error
+	if errors.As(err, &e) {
+		// Same registry, just return it
+		if e.registry == r {
+			return e
+		}
+		// Different registry warn
+		if r.allowInternalLogs {
+			log.Printf("[fail] From() received error from different registry")
+		}
+		return e
+	}
+
+	// Need to map
+	if r.genericMappers != nil {
+		if fe, mapperName, ok := r.genericMappers.Map(err); ok {
+			if !fe.IsRegistered() && r.allowInternalLogs {
+				log.Printf("[fail] WARNING: mapper '%s' returned unregistered error ID(%s) - mapper should use fail.New()",
+					mapperName,
+					fe.ID.String())
+			}
+			r.hooks.runFromSuccess(err, fe)
+			return fe
+		}
+	} else {
+		if r.allowInternalLogs {
+			log.Printf("[fail] tried to map with no mappers registered")
+		}
+		result := New(NoMapperRegistered).With(err)
+		r.hooks.runFromFail(err)
+		return result
+	}
+
+	if r.allowInternalLogs {
+		log.Printf("[fail] No mapper matched error: %T, msg=%q", err, err.Error())
+	}
+
+	r.hooks.runFromFail(err)
+	return New(NotMatchedInAnyMapper).With(err)
 }
