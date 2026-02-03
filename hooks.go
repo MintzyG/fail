@@ -19,7 +19,6 @@ const (
 	HookFromSuccess
 	HookForm
 	HookTranslate
-	HookMatch
 )
 
 // Hooks manages lifecycle callbacks for errors
@@ -162,15 +161,6 @@ func (h *Hooks) On(t HookType, fn any) {
 		h.onTranslate = append(h.onTranslate, f)
 		h.mu.Unlock()
 
-	case HookMatch:
-		f, ok := fn.(func(*Error, map[string]any))
-		if !ok {
-			panic(fmt.Sprintf("HookMatch requires func(*Error, map[string]any), got %T", fn))
-		}
-		h.mu.Lock()
-		h.onMatch = append(h.onMatch, f)
-		h.mu.Unlock()
-
 	default:
 		panic(fmt.Sprintf("unknown hook type: %d", t))
 	}
@@ -271,15 +261,6 @@ func (h *Hooks) runTranslate(err *Error, data map[string]any) {
 	})
 }
 
-func (h *Hooks) runMatch(err *Error, data map[string]any) {
-	h.mu.RLock()
-	hooks := h.onMatch
-	h.mu.RUnlock()
-	executeHooks(hooks, func(fn func(*Error, map[string]any)) {
-		fn(err, data)
-	})
-}
-
 // IDE-friendly convenience wrappers
 
 func OnCreate(fn func(*Error, map[string]any))    { On(HookCreate, fn) }
@@ -291,4 +272,3 @@ func OnFromFail(fn func(error))                   { On(HookFromFail, fn) }
 func OnFromSuccess(fn func(error, *Error))        { On(HookFromSuccess, fn) }
 func OnForm(fn func(ErrorID, *Error))             { On(HookForm, fn) }
 func OnTranslate(fn func(*Error, map[string]any)) { On(HookTranslate, fn) }
-func OnMatch(fn func(*Error, map[string]any))     { On(HookMatch, fn) }

@@ -178,7 +178,7 @@ func (e *Error) Traces(trace ...string) *Error {
 		return e
 	}
 	for _, t := range trace {
-		_ = e.addToSliceMeta("debug", t)
+		_ = e.addToSliceMeta("traces", t)
 	}
 	return e
 }

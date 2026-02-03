@@ -15,7 +15,6 @@ func TestHooks_Lifecycle(t *testing.T) {
 
 	created := false
 	logged := false
-	matched := false
 
 	fail.OnCreate(func(e *fail.Error, data map[string]any) {
 		if e.ID == HookID {
@@ -25,10 +24,6 @@ func TestHooks_Lifecycle(t *testing.T) {
 
 	fail.OnLog(func(e *fail.Error, data map[string]any) {
 		logged = true
-	})
-
-	fail.OnMatch(func(e *fail.Error, data map[string]any) {
-		matched = true
 	})
 
 	// Trigger Create
@@ -43,12 +38,6 @@ func TestHooks_Lifecycle(t *testing.T) {
 	_ = err.Log()
 	if !logged {
 		t.Error("OnLog hook failed")
-	}
-
-	// Trigger Match
-	fail.Match(err).Case(HookID, func(e *fail.Error) {})
-	if !matched {
-		t.Error("OnMatch hook failed")
 	}
 }
 
@@ -70,7 +59,7 @@ func TestHooks_PanicRecovery(t *testing.T) {
 
 	fail.OnCreate(func(e *fail.Error, data map[string]any) {
 		panicked = true
-		panic("hook boom")
+		panic(e.ID.String() + " was the panic culprit")
 	})
 
 	fail.OnCreate(func(e *fail.Error, data map[string]any) {
